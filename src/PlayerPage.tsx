@@ -77,7 +77,7 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
         )}
       </div>
 
-      <Opportunity gsis={p.gsis} pos={p.pos} />
+      <Opportunity gsis={p.gsis} name={p.name} pos={p.pos} team={p.team} />
 
       <h3>League stats</h3>
       <nav aria-label="Leagues">

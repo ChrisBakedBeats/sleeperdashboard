@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { cards, columns, groupOf, loadMetrics, type Metrics } from "./metrics";
+import { cards, columns, findPlayer, groupOf, loadMetrics, type Metrics } from "./metrics";
 
-export default function Opportunity({ gsis, pos }: { gsis?: string | null; pos: string }) {
+export default function Opportunity({ gsis, name, pos, team }: { gsis?: string | null; name: string; pos: string; team: string }) {
   const [m, setM] = useState<Metrics | "missing">();
   useEffect(() => { loadMetrics().then(setM).catch(() => setM("missing")); }, []);
 
@@ -11,10 +11,9 @@ export default function Opportunity({ gsis, pos }: { gsis?: string | null; pos: 
   else if (m === undefined) body = <p className="note">Loading metrics…</p>;
   else if (m === "missing") body = <p className="note">The metrics file wasn't found. It's built during each deploy. When running locally, run npm run data first.</p>;
   else if (m.error) body = <p className="note">The metrics data didn't build: {m.error}</p>;
-  else if (!gsis) body = <p className="note">Sleeper has no NFL ID for this player, so their metrics can't be matched.</p>;
   else {
-    const rec = m.players[gsis];
-    if (!rec) body = <p className="note">No game data for this player in the {m.season} season yet.</p>;
+    const rec = findPlayer(m, gsis, name, pos, team);
+    if (!rec) body = <p className="note">No {m.season} game data was found for this player. They may not have played yet, or couldn't be matched by NFL ID or name.</p>;
     else {
       const cols = columns(group);
       const recent = [...rec.weeks].reverse().slice(0, 8);

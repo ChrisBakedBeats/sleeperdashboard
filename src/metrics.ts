@@ -4,7 +4,7 @@ export type W = {
 };
 export type Metrics = {
   generated?: string; season?: number; through?: number; error?: string;
-  players: Record<string, { pos: string; team: string; weeks: W[] }>;
+  players: Record<string, { name?: string; pos: string; team: string; weeks: W[] }>;
 };
 export type Group = "QB" | "RB" | "REC";
 export type Col = { key: string; label: string; fmt: (w: W) => string };
@@ -67,4 +67,20 @@ export function columns(g: Group): Col[] {
   if (g === "RB") return [{ key: "car", label: "Car", fmt: (w) => f0(w.car) }, { key: "tgt", label: "Tgt", fmt: (w) => f0(w.tgt) }, { key: "rec", label: "Rec", fmt: (w) => f0(w.rec) }, { key: "ts", label: "Tgt %", fmt: (w) => pc(w.ts) }, ...tail];
   if (g === "REC") return [{ key: "tgt", label: "Tgt", fmt: (w) => f0(w.tgt) }, { key: "rec", label: "Rec", fmt: (w) => f0(w.rec) }, { key: "ay", label: "Air yds", fmt: (w) => f0(w.ay) }, { key: "ts", label: "Tgt %", fmt: (w) => pc(w.ts) }, { key: "ays", label: "AY %", fmt: (w) => pc(w.ays) }, { key: "wopr", label: "WOPR", fmt: (w) => f2(w.wopr) }, ...tail];
   return [{ key: "att", label: "Att", fmt: (w) => f0(w.att) }, { key: "car", label: "Rush", fmt: (w) => f0(w.car) }, { key: "pay", label: "Air yds", fmt: (w) => (w.pay ? f0(w.pay) : d) }, ...tail];
+}
+
+// Match a Sleeper player to NFL stats: by NFL ID first, then by first initial + last name
+// within the same position group. If several players share that name and none is on the
+// same team, return nothing rather than guess.
+const norm = (s: string) => s.toLowerCase().replace(/[.'’]/g, "").replace(/-/g, " ").replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/\s+/g, " ").trim();
+const nameKey = (s: string) => {
+  const t = norm(s).split(" ");
+  return t.length < 2 ? t[0] : `${t[0][0]} ${t[t.length - 1]}`;
+};
+export function findPlayer(m: Metrics, gsis: string | null | undefined, name: string, pos: string, team: string) {
+  if (gsis && m.players[gsis]) return m.players[gsis];
+  const g = groupOf(pos);
+  const key = nameKey(name);
+  const hits = Object.values(m.players).filter((p) => p.name && groupOf(p.pos) === g && nameKey(p.name) === key);
+  return hits.find((p) => p.team === team) ?? (hits.length === 1 ? hits[0] : undefined);
 }
