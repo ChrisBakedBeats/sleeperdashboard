@@ -61,3 +61,14 @@ select { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border
 .bio dd { margin: 0; font-weight: 600; }
 .weeks th, .weeks td { text-align: right; padding: 4px 8px; font-size: 0.9rem; }
 .panel .facts { gap: 24px; margin: 12px 0; }
+
+.splash { min-height: 100vh; display: grid; place-items: center; }
+.splash-card { width: min(440px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 32px 28px; }
+.splash h1 { font-size: 2.6rem; margin-bottom: 8px; }
+.lede { color: var(--muted); margin: 0 0 24px; }
+.splash form { display: grid; gap: 8px; }
+.splash input { width: 100%; font-size: 1.1rem; }
+.splash form button { margin-top: 8px; padding: 12px; font-weight: 700; }
+.splash .error, .splash .note { margin-top: 16px; }
+.who { display: flex; gap: 12px; align-items: center; }
+button:disabled, input:disabled { opacity: 0.6; cursor: not-allowed; }

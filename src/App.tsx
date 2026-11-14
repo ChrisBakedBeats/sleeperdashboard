@@ -4,9 +4,10 @@ import Waivers from "./Waivers";
 import RosterTable from "./RosterTable";
 import PlayerLink from "./PlayerLink";
 import PlayerPage from "./PlayerPage";
+import Splash from "./Splash";
 
 const SAVED_USER = "sleeper-username";
-const startUser = () => { try { return localStorage.getItem(SAVED_USER) || "belicheckyoself14"; } catch { return "belicheckyoself14"; } };
+const savedUser = () => { try { return localStorage.getItem(SAVED_USER); } catch { return null; } };
 
 const parseRoute = () => {
   const m = window.location.hash.match(/^#\/player\/(.+)$/);
@@ -14,8 +15,9 @@ const parseRoute = () => {
 };
 
 export default function App() {
-  const [input, setInput] = useState(startUser);
-  const [username, setUsername] = useState(input);
+  const [username, setUsername] = useState<string | null>(savedUser);
+  const [lastTried, setLastTried] = useState(() => savedUser() ?? "");
+  const [loading, setLoading] = useState(false);
   const [state, setState] = useState<S.NflState>();
   const [userId, setUserId] = useState<string>();
   const [leagues, setLeagues] = useState<S.League[]>([]);
@@ -33,33 +35,50 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    setError(undefined);
+    if (!username) return;
+    let live = true;
+    setError(undefined); setLoading(true); setLastTried(username);
     (async () => {
       try {
         const st = await S.getState();
         const user = await S.getUser(username);
         if (!user) throw new Error(`No Sleeper user named "${username}". Check the spelling and try again.`);
         const ls = await S.getLeagues(user.user_id, st.season);
+        if (!live) return;
         setState(st); setUserId(user.user_id); setLeagues(ls); setLeagueId(ls[0]?.league_id);
         try { localStorage.setItem(SAVED_USER, username); } catch { /* ignore */ }
         S.getPlayers().then(setPlayers).catch(() => {});
         S.getTrending().then(setTrending).catch(() => {});
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) {
+        if (!live) return;
+        setError((e as Error).message);
+        setUsername(null);
+      } finally {
+        if (live) setLoading(false);
+      }
     })();
+    return () => { live = false; };
   }, [username]);
+
+  const signOut = () => {
+    try { localStorage.removeItem(SAVED_USER); } catch { /* ignore */ }
+    setUsername(null); setUserId(undefined); setState(undefined); setLeagues([]); setLeagueId(undefined); setError(undefined);
+    window.location.hash = "#/";
+  };
 
   const league = leagues.find((l) => l.league_id === leagueId);
   const who = (id: string) => players[id]?.name ?? id;
+
+  if (!userId) return <Splash initial={lastTried} loading={loading} error={error} onSubmit={setUsername} />;
 
   return (
     <main>
       <header>
         <h1>Sleeper Dashboard</h1>
-        <form onSubmit={(e) => { e.preventDefault(); setUsername(input.trim()); }}>
-          <label htmlFor="u">Sleeper username</label>
-          <input id="u" value={input} onChange={(e) => setInput(e.target.value)} />
-          <button>Load leagues</button>
-        </form>
+        <div className="who">
+          <span>Signed in as <b>{username}</b></span>
+          <button onClick={signOut}>Change user</button>
+        </div>
       </header>
 
       {error && <p className="error" role="alert">{error}</p>}
