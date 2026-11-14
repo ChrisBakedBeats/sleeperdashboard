@@ -8,13 +8,18 @@ async function get<T>(path: string): Promise<T> {
 
 export type NflState = { season: string; week: number };
 export type SleeperUser = { user_id: string; display_name: string };
-export type League = { league_id: string; name: string; total_rosters: number; roster_positions: string[] };
+export type League = {
+  league_id: string; name: string; total_rosters: number; roster_positions: string[];
+  settings?: { waiver_type?: number; waiver_budget?: number };
+};
 export type Roster = {
   roster_id: number;
   owner_id: string;
   players: string[] | null;
+  reserve?: string[] | null;
+  taxi?: string[] | null;
   starters: string[] | null;
-  settings: { wins: number; losses: number; ties: number; fpts: number; fpts_decimal?: number };
+  settings: { wins: number; losses: number; ties: number; fpts: number; fpts_decimal?: number; waiver_budget_used?: number; waiver_position?: number };
 };
 export type LeagueUser = { user_id: string; display_name: string; metadata?: { team_name?: string } };
 export type Matchup = { roster_id: number; matchup_id: number | null; points: number };
@@ -28,7 +33,14 @@ export const getLeagues = (userId: string, season: string) => get<League[]>(`/us
 export const getRosters = (id: string) => get<Roster[]>(`/league/${id}/rosters`);
 export const getLeagueUsers = (id: string) => get<LeagueUser[]>(`/league/${id}/users`);
 export const getMatchups = (id: string, week: number) => get<Matchup[]>(`/league/${id}/matchups/${week}`);
-export const getTrending = () => get<Trend[]>("/players/nfl/trending/add?lookback_hours=24&limit=15");
+export const getTrending = () => get<Trend[]>("/players/nfl/trending/add?lookback_hours=24&limit=100");
+
+export type Txn = {
+  transaction_id: string; type: string; status: string; created: number;
+  adds: Record<string, number> | null; drops: Record<string, number> | null;
+  settings: { waiver_bid?: number } | null;
+};
+export const getTxns = (id: string, week: number) => get<Txn[]>(`/league/${id}/transactions/${week}`);
 
 const CACHE_KEY = "sleeper-players-v1";
 const CACHE_MS = 6 * 60 * 60 * 1000;

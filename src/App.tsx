@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import * as S from "./sleeper";
+import Waivers from "./Waivers";
 
 const SAVED_USER = "sleeper-username";
 const startUser = () => { try { return localStorage.getItem(SAVED_USER) || "belicheckyoself14"; } catch { return "belicheckyoself14"; } };
@@ -14,6 +15,7 @@ export default function App() {
   const [players, setPlayers] = useState<S.PlayerMap>({});
   const [trending, setTrending] = useState<S.Trend[]>([]);
   const [error, setError] = useState<string>();
+  const [view, setView] = useState<"waivers" | "league">("waivers");
 
   useEffect(() => {
     setError(undefined);
@@ -54,13 +56,19 @@ export default function App() {
         ))}
       </nav>
 
+      <div className="chips" role="tablist">
+        <button aria-pressed={view === "waivers"} onClick={() => setView("waivers")}>Waivers</button>
+        <button aria-pressed={view === "league"} onClick={() => setView("league")}>Matchup and roster</button>
+      </div>
+
       <div className="grid">
-        {league && state && userId && <LeagueView key={league.league_id} league={league} userId={userId} week={state.week} players={players} />}
-        <section className="panel">
+        {league && state && userId && view === "waivers" && <Waivers key={league.league_id} league={league} userId={userId} week={state.week} players={players} trending={trending} />}
+        {league && state && userId && view === "league" && <LeagueView key={league.league_id} league={league} userId={userId} week={state.week} players={players} />}
+        <section className="panel" hidden={view === "waivers"}>
           <h2>Most added in the last 24 hours</h2>
           {trending.length === 0 ? <p className="note">Loading trending players…</p> : (
             <ol className="plain">
-              {trending.map((t) => (
+              {trending.slice(0, 15).map((t) => (
                 <li key={t.player_id}><span>{who(t.player_id)} <small>{players[t.player_id]?.pos} {players[t.player_id]?.team}</small></span><b>{t.count.toLocaleString()}</b></li>
               ))}
             </ol>
