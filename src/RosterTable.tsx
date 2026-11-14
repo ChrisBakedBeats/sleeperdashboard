@@ -6,14 +6,21 @@ const f = (n?: number) => (n == null ? "-" : n.toFixed(1));
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 
 function Spark({ pts }: { pts: (number | undefined)[] }) {
-  const w = 5, h = 24;
+  const step = 8, h = 28, pad = 3;
   const max = Math.max(20, ...pts.map((p) => p ?? 0));
+  const x = (i: number) => i * step + step / 2;
+  const y = (p: number) => h - pad - (Math.max(p, 0) / max) * (h - pad * 2);
+  let d = "";
+  let pen = false;
+  pts.forEach((p, i) => {
+    if (p == null) { pen = false; return; }
+    d += `${pen ? "L" : "M"}${x(i)} ${y(p)}`;
+    pen = true;
+  });
   return (
-    <svg width={pts.length * (w + 1)} height={h} role="img" aria-label={`Points by week: ${pts.map((p) => p ?? "none").join(", ")}`}>
-      {pts.map((p, i) => {
-        const bh = p == null || p <= 0 ? 1 : Math.max(1, (p / max) * h);
-        return <rect key={i} x={i * (w + 1)} y={h - bh} width={w} height={bh} fill="var(--accent)" opacity={p == null ? 0.2 : 1} />;
-      })}
+    <svg width={pts.length * step} height={h} role="img" aria-label={`Points by week: ${pts.map((p) => p ?? "none").join(", ")}`}>
+      <path d={d} fill="none" stroke="var(--accent)" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      {pts.map((p, i) => (p == null ? null : <circle key={i} cx={x(i)} cy={y(p)} r={1.8} fill="var(--accent)" />))}
     </svg>
   );
 }
@@ -48,7 +55,7 @@ export default function RosterTable({ players, season, week, starters, slots, be
       <div className="scroll">
         <table className="roster">
           <thead>
-            <tr><th>Slot</th><th>Player</th><th>Week {week}</th><th>Last wk</th><th>Avg</th><th>Last 3</th><th>Total</th><th>By week</th></tr>
+            <tr><th>Slot</th><th>Player</th><th>Week {week}</th><th>Last wk</th><th>Avg</th><th>Last 3</th><th>Total</th><th>Per Week</th></tr>
           </thead>
           <tbody>
             {head("Starters")}
