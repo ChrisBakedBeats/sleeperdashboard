@@ -79,7 +79,7 @@ try {
       att: num(r, "attempts") ?? 0, pay: num(r, "passing_air_yards") ?? 0, pts: num(r, "fantasy_points_ppr"),
     };
     if (w.car + w.tgt + w.att === 0) continue;
-    (out.players[id] ??= { pos, team: str(r, "team") || str(r, "recent_team"), weeks: [] }).weeks.push(w);
+    (out.players[id] ??= { name: str(r, "player_display_name") || str(r, "player_name"), pos, team: str(r, "team") || str(r, "recent_team"), weeks: [] }).weeks.push(w);
     through = Math.max(through, week);
   }
   for (const p of Object.values(out.players)) p.weeks.sort((a, b) => a.w - b.w);
