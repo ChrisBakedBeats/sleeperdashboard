@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as S from "./sleeper";
 import Waivers from "./Waivers";
+import RosterTable from "./RosterTable";
 
 const SAVED_USER = "sleeper-username";
 const startUser = () => { try { return localStorage.getItem(SAVED_USER) || "belicheckyoself14"; } catch { return "belicheckyoself14"; } };
@@ -79,15 +80,15 @@ export default function App() {
   );
 }
 
-type LeagueData = { rosters: S.Roster[]; users: S.LeagueUser[]; matchups: S.Matchup[] };
+type LeagueData = { rosters: S.Roster[]; users: S.LeagueUser[]; matchups: S.Matchup[]; season: S.SeasonPoints };
 
 function LeagueView({ league, userId, week, players }: { league: S.League; userId: string; week: number; players: S.PlayerMap }) {
   const [data, setData] = useState<LeagueData>();
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    Promise.all([S.getRosters(league.league_id), S.getLeagueUsers(league.league_id), S.getMatchups(league.league_id, week)])
-      .then(([rosters, users, matchups]) => setData({ rosters, users, matchups }))
+    Promise.all([S.getRosters(league.league_id), S.getLeagueUsers(league.league_id), S.getMatchups(league.league_id, week), S.getSeasonPoints(league.league_id, week)])
+      .then(([rosters, users, matchups, season]) => setData({ rosters, users, matchups, season }))
       .catch((e) => setError((e as Error).message));
   }, [league.league_id, week]);
 
@@ -108,15 +109,6 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
 
   const starters = mine?.starters ?? [];
   const bench = (mine?.players ?? []).filter((p) => !starters.includes(p));
-  const row = (id: string, slot: string) => {
-    const p = players[id];
-    return (
-      <li key={slot + id}>
-        <span><em>{slot}</em> {id === "0" ? "Empty" : p?.name ?? id} <small>{p?.pos} {p?.team}</small></span>
-        {p?.injury && <b className="injury">{p.injury}</b>}
-      </li>
-    );
-  };
 
   return (
     <>
@@ -130,13 +122,14 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
         ) : <p className="note">No matchup found for you this week.</p>}
       </section>
 
-      <section className="panel">
-        <h2>Your roster</h2>
-        <h3>Starters</h3>
-        <ul className="plain">{starters.map((id, i) => row(id, league.roster_positions[i] ?? "—"))}</ul>
-        <h3>Bench</h3>
-        <ul className="plain">{bench.map((id) => row(id, "BN"))}</ul>
-      </section>
+      <RosterTable
+        players={players}
+        season={data.season}
+        week={week}
+        starters={starters}
+        slots={starters.map((_, i) => league.roster_positions[i] ?? "-")}
+        bench={bench}
+      />
 
       <section className="panel">
         <h2>Standings</h2>
