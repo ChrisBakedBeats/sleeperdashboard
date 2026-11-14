@@ -5,6 +5,7 @@ import RosterTable from "./RosterTable";
 import PlayerLink from "./PlayerLink";
 import PlayerPage from "./PlayerPage";
 import Splash from "./Splash";
+import ThemeToggle from "./ThemeToggle";
 
 const SAVED_USER = "sleeper-username";
 const savedUser = () => { try { return localStorage.getItem(SAVED_USER); } catch { return null; } };
@@ -76,6 +77,7 @@ export default function App() {
       <header>
         <h1>Sleeper Dashboard</h1>
         <div className="who">
+          <ThemeToggle />
           <span>Signed in as <b>{username}</b></span>
           <button onClick={signOut}>Change user</button>
         </div>

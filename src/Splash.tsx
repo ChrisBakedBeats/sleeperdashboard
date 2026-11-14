@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 type Props = { initial: string; loading: boolean; error?: string; onSubmit: (name: string) => void };
 
@@ -6,6 +7,7 @@ export default function Splash({ initial, loading, error, onSubmit }: Props) {
   const [name, setName] = useState(initial);
   return (
     <main className="splash">
+      <div className="splash-top"><ThemeToggle /></div>
       <div className="splash-card">
         <h1>Sleeper Dashboard</h1>
         <p className="lede">Waiver targets, rosters, and opportunity stats across all of your Sleeper leagues.</p>
