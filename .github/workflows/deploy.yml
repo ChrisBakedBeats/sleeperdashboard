@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * *"
 
 permissions:
   contents: read
@@ -23,6 +25,7 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - run: node scripts/fetch-metrics.mjs
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
