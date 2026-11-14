@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as S from "./sleeper";
 import { Spark } from "./RosterTable";
+import Opportunity from "./Opportunity";
 
 type Props = { id: string; players: S.PlayerMap; leagues: S.League[]; week: number; userId: string; trending: S.Trend[] };
 type Row = { league: S.League; owner: string | null; mine: boolean; pts: (number | undefined)[] };
@@ -75,6 +76,8 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
           </section>
         )}
       </div>
+
+      <Opportunity gsis={p.gsis} pos={p.pos} />
 
       <h3>League stats</h3>
       <nav aria-label="Leagues">

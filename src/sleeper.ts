@@ -25,6 +25,7 @@ export type LeagueUser = { user_id: string; display_name: string; metadata?: { t
 export type Matchup = { roster_id: number; matchup_id: number | null; points: number; players_points?: Record<string, number>; starters?: string[]; players?: string[] };
 export type Player = {
   name: string; pos: string; team: string; injury: string | null;
+  gsis?: string | null;
   num?: number | null; age?: number | null; height?: string | null; weight?: string | null;
   college?: string | null; exp?: number | null; status?: string | null;
   injPart?: string | null; injNotes?: string | null;
@@ -48,7 +49,7 @@ export type Txn = {
 };
 export const getTxns = (id: string, week: number) => get<Txn[]>(`/league/${id}/transactions/${week}`);
 
-const CACHE_KEY = "sleeper-players-v2";
+const CACHE_KEY = "sleeper-players-v3";
 const CACHE_MS = 6 * 60 * 60 * 1000;
 
 // The full player file is several MB, so keep a slimmed copy in localStorage.
@@ -70,6 +71,7 @@ export async function getPlayers(): Promise<PlayerMap> {
       pos: p.position ?? "",
       team: p.team ?? "",
       injury: p.injury_status ?? null,
+      gsis: p.gsis_id ?? null,
       num: p.number ?? null, age: p.age ?? null, height: p.height ?? null, weight: p.weight ?? null,
       college: p.college ?? null, exp: p.years_exp ?? null, status: p.status ?? null,
       injPart: p.injury_body_part ?? null, injNotes: p.injury_notes ?? null,
