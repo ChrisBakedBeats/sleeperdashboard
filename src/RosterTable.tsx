@@ -1,11 +1,12 @@
 import type { PlayerMap, SeasonPoints } from "./sleeper";
+import PlayerLink from "./PlayerLink";
 
 type Props = { players: PlayerMap; season: SeasonPoints; week: number; starters: string[]; slots: string[]; bench: string[] };
 
 const f = (n?: number) => (n == null ? "-" : n.toFixed(1));
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 
-function Spark({ pts }: { pts: (number | undefined)[] }) {
+export function Spark({ pts }: { pts: (number | undefined)[] }) {
   const step = 8, h = 28, pad = 3;
   const max = Math.max(20, ...pts.map((p) => p ?? 0));
   const x = (i: number) => i * step + step / 2;
@@ -36,7 +37,7 @@ function Row({ id, slot, players, season, week }: { id: string; slot: string; pl
   return (
     <tr>
       <td>{slot}</td>
-      <td>{id === "0" ? "Empty" : p?.name ?? id} <small>{p?.pos} {p?.team}</small>{p?.injury && <b className="injury"> {p.injury}</b>}</td>
+      <td>{id === "0" ? "Empty" : <PlayerLink id={id} name={p?.name ?? id} />} <small>{p?.pos} {p?.team}</small>{p?.injury && <b className="injury"> {p.injury}</b>}</td>
       <td>{f(pts[week - 1])}</td>
       <td>{f(done[week - 2])}</td>
       <td>{f(avg)}</td>

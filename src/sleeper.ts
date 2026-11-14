@@ -23,7 +23,13 @@ export type Roster = {
 };
 export type LeagueUser = { user_id: string; display_name: string; metadata?: { team_name?: string } };
 export type Matchup = { roster_id: number; matchup_id: number | null; points: number; players_points?: Record<string, number>; starters?: string[]; players?: string[] };
-export type Player = { name: string; pos: string; team: string; injury: string | null };
+export type Player = {
+  name: string; pos: string; team: string; injury: string | null;
+  num?: number | null; age?: number | null; height?: string | null; weight?: string | null;
+  college?: string | null; exp?: number | null; status?: string | null;
+  injPart?: string | null; injNotes?: string | null;
+  depth?: number | null; depthPos?: string | null; fpos?: string[] | null;
+};
 export type PlayerMap = Record<string, Player>;
 export type Trend = { player_id: string; count: number };
 
@@ -42,7 +48,7 @@ export type Txn = {
 };
 export const getTxns = (id: string, week: number) => get<Txn[]>(`/league/${id}/transactions/${week}`);
 
-const CACHE_KEY = "sleeper-players-v1";
+const CACHE_KEY = "sleeper-players-v2";
 const CACHE_MS = 6 * 60 * 60 * 1000;
 
 // The full player file is several MB, so keep a slimmed copy in localStorage.
@@ -64,6 +70,10 @@ export async function getPlayers(): Promise<PlayerMap> {
       pos: p.position ?? "",
       team: p.team ?? "",
       injury: p.injury_status ?? null,
+      num: p.number ?? null, age: p.age ?? null, height: p.height ?? null, weight: p.weight ?? null,
+      college: p.college ?? null, exp: p.years_exp ?? null, status: p.status ?? null,
+      injPart: p.injury_body_part ?? null, injNotes: p.injury_notes ?? null,
+      depth: p.depth_chart_order ?? null, depthPos: p.depth_chart_position ?? null, fpos: p.fantasy_positions ?? null,
     };
   }
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), d: slim })); } catch { /* too big or blocked */ }
@@ -89,4 +99,18 @@ export function toSeasonPoints(byWeek: Matchup[][]): SeasonPoints {
     ),
   );
   return out;
+}
+
+// One league's rosters, owners and weekly matchups, cached for the session.
+export type LeagueBundle = { rosters: Roster[]; users: LeagueUser[]; byWeek: Matchup[][] };
+const bundles = new Map<string, Promise<LeagueBundle>>();
+export function getLeagueBundle(id: string, week: number): Promise<LeagueBundle> {
+  const key = `${id}:${week}`;
+  let p = bundles.get(key);
+  if (!p) {
+    p = Promise.all([getRosters(id), getLeagueUsers(id), getAllMatchups(id, week)]).then(([rosters, users, byWeek]) => ({ rosters, users, byWeek }));
+    p.catch(() => bundles.delete(key));
+    bundles.set(key, p);
+  }
+  return p;
 }

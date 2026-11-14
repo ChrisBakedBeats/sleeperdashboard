@@ -2,9 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import * as S from "./sleeper";
 import Waivers from "./Waivers";
 import RosterTable from "./RosterTable";
+import PlayerLink from "./PlayerLink";
+import PlayerPage from "./PlayerPage";
 
 const SAVED_USER = "sleeper-username";
 const startUser = () => { try { return localStorage.getItem(SAVED_USER) || "belicheckyoself14"; } catch { return "belicheckyoself14"; } };
+
+const parseRoute = () => {
+  const m = window.location.hash.match(/^#\/player\/(.+)$/);
+  return m ? decodeURIComponent(m[1]) : null;
+};
 
 export default function App() {
   const [input, setInput] = useState(startUser);
@@ -17,6 +24,13 @@ export default function App() {
   const [trending, setTrending] = useState<S.Trend[]>([]);
   const [error, setError] = useState<string>();
   const [view, setView] = useState<"waivers" | "league">("waivers");
+  const [playerId, setPlayerId] = useState<string | null>(parseRoute);
+
+  useEffect(() => {
+    const onHash = () => { setPlayerId(parseRoute()); window.scrollTo(0, 0); };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   useEffect(() => {
     setError(undefined);
@@ -51,6 +65,9 @@ export default function App() {
       {error && <p className="error" role="alert">{error}</p>}
       {state && <p className="note">{state.season} season, week {state.week}. {leagues.length} league{leagues.length === 1 ? "" : "s"} found.</p>}
 
+      {playerId && state && userId && <PlayerPage id={playerId} players={players} leagues={leagues} week={state.week} userId={userId} trending={trending} />}
+
+      <div hidden={playerId != null}>
       <nav aria-label="Leagues">
         {leagues.map((l) => (
           <button key={l.league_id} aria-pressed={l.league_id === leagueId} onClick={() => setLeagueId(l.league_id)}>{l.name}</button>
@@ -70,11 +87,12 @@ export default function App() {
           {trending.length === 0 ? <p className="note">Loading trending players…</p> : (
             <ol className="plain">
               {trending.slice(0, 15).map((t) => (
-                <li key={t.player_id}><span>{who(t.player_id)} <small>{players[t.player_id]?.pos} {players[t.player_id]?.team}</small></span><b>{t.count.toLocaleString()}</b></li>
+                <li key={t.player_id}><span><PlayerLink id={t.player_id} name={who(t.player_id)} /> <small>{players[t.player_id]?.pos} {players[t.player_id]?.team}</small></span><b>{t.count.toLocaleString()}</b></li>
               ))}
             </ol>
           )}
         </section>
+      </div>
       </div>
     </main>
   );
@@ -88,8 +106,8 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
   const [sel, setSel] = useState(week);
 
   useEffect(() => {
-    Promise.all([S.getRosters(league.league_id), S.getLeagueUsers(league.league_id), S.getAllMatchups(league.league_id, week)])
-      .then(([rosters, users, byWeek]) => setData({ rosters, users, byWeek }))
+    S.getLeagueBundle(league.league_id, week)
+      .then(setData)
       .catch((e) => setError((e as Error).message));
   }, [league.league_id, week]);
 

@@ -50,3 +50,14 @@ tr.me td { font-weight: 700; background: #dfe8f1; }
 
 .weekbar { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
 select { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+
+.plink { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.plink:hover { color: var(--accent); text-decoration-color: currentColor; }
+.back { display: inline-block; margin: 16px 0 8px; color: var(--accent); }
+.phead h2 { margin: 0; font-size: 2.4rem; font-weight: 800; font-stretch: 75%; }
+.phead p { margin: 4px 0 16px; }
+.bio { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 0; }
+.bio dt { color: var(--muted); font-size: 0.85rem; }
+.bio dd { margin: 0; font-weight: 600; }
+.weeks th, .weeks td { text-align: right; padding: 4px 8px; font-size: 0.9rem; }
+.panel .facts { gap: 24px; margin: 12px 0; }

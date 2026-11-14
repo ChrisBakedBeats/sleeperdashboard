@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import * as S from "./sleeper";
+import PlayerLink from "./PlayerLink";
 
 const POS = ["ALL", "QB", "RB", "WR", "TE", "K", "DEF"];
 
@@ -74,7 +75,7 @@ export default function Waivers({ league, userId, week, players, trending }: Pro
               const p = players[t.player_id];
               return (
                 <li key={t.player_id}>
-                  <span>{p.name} <small>{p.pos} {p.team}</small></span>
+                  <span><PlayerLink id={t.player_id} name={p.name} /> <small>{p.pos} {p.team}</small></span>
                   <span>{p.injury && <b className="injury">{p.injury} </b>}<b>{t.count.toLocaleString()} adds</b></span>
                 </li>
               );
@@ -91,7 +92,7 @@ export default function Waivers({ league, userId, week, players, trending }: Pro
             <tbody>
               {claims.map((c) => (
                 <tr key={c.key} className={c.rid === mine?.roster_id ? "me" : ""}>
-                  <td>{players[c.pid]?.name ?? c.pid}</td>
+                  <td><PlayerLink id={c.pid} name={players[c.pid]?.name ?? c.pid} /></td>
                   <td>{teamName(c.rid)}</td>
                   {isFaab && <td>{c.bid != null ? `$${c.bid}` : "n/a"}</td>}
                   <td>{c.won ? "Won" : "Lost"}</td>
