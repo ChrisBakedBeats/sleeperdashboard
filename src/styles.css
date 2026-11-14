@@ -47,3 +47,6 @@ tr.me td { font-weight: 700; background: #dfe8f1; }
 .roster th:nth-child(n+3):not(:last-child), .roster td:nth-child(n+3):not(:last-child) { text-align: right; }
 .roster tr.group th { background: #dde2e7; font-size: 0.85rem; color: var(--muted); }
 .roster svg { display: block; }
+
+.weekbar { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
+select { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }

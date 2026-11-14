@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as S from "./sleeper";
 import Waivers from "./Waivers";
 import RosterTable from "./RosterTable";
@@ -80,20 +80,27 @@ export default function App() {
   );
 }
 
-type LeagueData = { rosters: S.Roster[]; users: S.LeagueUser[]; matchups: S.Matchup[]; season: S.SeasonPoints };
+type LeagueData = { rosters: S.Roster[]; users: S.LeagueUser[]; byWeek: S.Matchup[][] };
 
 function LeagueView({ league, userId, week, players }: { league: S.League; userId: string; week: number; players: S.PlayerMap }) {
   const [data, setData] = useState<LeagueData>();
   const [error, setError] = useState<string>();
+  const [sel, setSel] = useState(week);
 
   useEffect(() => {
-    Promise.all([S.getRosters(league.league_id), S.getLeagueUsers(league.league_id), S.getMatchups(league.league_id, week), S.getSeasonPoints(league.league_id, week)])
-      .then(([rosters, users, matchups, season]) => setData({ rosters, users, matchups, season }))
+    Promise.all([S.getRosters(league.league_id), S.getLeagueUsers(league.league_id), S.getAllMatchups(league.league_id, week)])
+      .then(([rosters, users, byWeek]) => setData({ rosters, users, byWeek }))
       .catch((e) => setError((e as Error).message));
   }, [league.league_id, week]);
 
+  const season = useMemo(() => (data ? S.toSeasonPoints(data.byWeek) : {}), [data]);
+
   if (error) return <p className="error" role="alert">{error}</p>;
   if (!data) return <p className="note">Loading {league.name}…</p>;
+
+  const weeks = data.byWeek.length;
+  const selWeek = Math.min(sel, weeks);
+  const weekMatchups = data.byWeek[selWeek - 1] ?? [];
 
   const teamName = (r?: S.Roster) => {
     const u = data.users.find((x) => x.user_id === r?.owner_id);
@@ -103,29 +110,38 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
   const standings = [...data.rosters].sort((a, b) => b.settings.wins - a.settings.wins || fpts(b) - fpts(a));
 
   const mine = data.rosters.find((r) => r.owner_id === userId);
-  const myM = data.matchups.find((m) => m.roster_id === mine?.roster_id);
-  const oppM = myM?.matchup_id != null ? data.matchups.find((m) => m.matchup_id === myM.matchup_id && m.roster_id !== myM.roster_id) : undefined;
+  const myM = weekMatchups.find((m) => m.roster_id === mine?.roster_id);
+  const oppM = myM?.matchup_id != null ? weekMatchups.find((m) => m.matchup_id === myM.matchup_id && m.roster_id !== myM.roster_id) : undefined;
   const opp = data.rosters.find((r) => r.roster_id === oppM?.roster_id);
 
-  const starters = mine?.starters ?? [];
-  const bench = (mine?.players ?? []).filter((p) => !starters.includes(p));
+  const starters = myM?.starters ?? mine?.starters ?? [];
+  const bench = (myM?.players ?? mine?.players ?? []).filter((p) => !starters.includes(p));
 
   return (
     <>
+      <section className="panel weekbar">
+        <label htmlFor="wk">Week</label>
+        <select id="wk" value={selWeek} onChange={(e) => setSel(Number(e.target.value))}>
+          {Array.from({ length: weeks }, (_, i) => i + 1).map((w) => (
+            <option key={w} value={w}>{w === week ? `${w} (current)` : w}</option>
+          ))}
+        </select>
+      </section>
+
       <section className="panel scoreboard">
-        <h2>Week {week} matchup</h2>
+        <h2>Week {selWeek} matchup</h2>
         {myM ? (
           <div className="score">
             <div><span>{teamName(mine)}</span><strong>{myM.points.toFixed(2)}</strong></div>
             {oppM ? <div><span>{teamName(opp)}</span><strong>{oppM.points.toFixed(2)}</strong></div> : <p className="note">No head-to-head opponent in this league format.</p>}
           </div>
-        ) : <p className="note">No matchup found for you this week.</p>}
+        ) : <p className="note">No matchup found for you in week {selWeek}.</p>}
       </section>
 
       <RosterTable
         players={players}
-        season={data.season}
-        week={week}
+        season={season}
+        week={selWeek}
         starters={starters}
         slots={starters.map((_, i) => league.roster_positions[i] ?? "-")}
         bench={bench}
