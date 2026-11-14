@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import * as S from "./sleeper";
-import { Spark } from "./RosterTable";
 import Opportunity from "./Opportunity";
 
 type Props = { id: string; players: S.PlayerMap; leagues: S.League[]; week: number; userId: string; trending: S.Trend[] };
@@ -9,6 +8,46 @@ type Row = { league: S.League; owner: string | null; mine: boolean; pts: (number
 const f = (n?: number) => (n == null ? "-" : n.toFixed(1));
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 const height = (h?: string | null) => (h && /^\d+$/.test(h) ? `${Math.floor(+h / 12)}'${+h % 12}"` : h ?? undefined);
+
+function WeekChart({ pts }: { pts: (number | undefined)[] }) {
+  const W = 720, H = 260, L = 40, R = 12, T = 20, B = 30;
+  const vals = pts.filter((p): p is number => p != null);
+  const top = Math.max(20, ...vals);
+  const bottom = Math.min(0, ...vals);
+  const step = top - bottom > 40 ? 20 : 10;
+  const hi = Math.ceil(top / step) * step;
+  const lo = Math.floor(bottom / step) * step;
+  const slot = (W - L - R) / pts.length;
+  const x = (i: number) => L + (i + 0.5) * slot;
+  const y = (v: number) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const ticks: number[] = [];
+  for (let t = lo; t <= hi; t += step) ticks.push(t);
+  let d = "";
+  let pen = false;
+  pts.forEach((v, i) => {
+    if (v == null) { pen = false; return; }
+    d += `${pen ? "L" : "M"}${x(i)} ${y(v)}`;
+    pen = true;
+  });
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", maxWidth: 900 }} role="img" aria-label={`Points by week: ${pts.map((v) => v ?? "none").join(", ")}`}>
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} stroke="var(--line)" />
+          <text x={L - 6} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)">{t}</text>
+        </g>
+      ))}
+      <path d={d} fill="none" stroke="var(--accent)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      {pts.map((v, i) => (v == null ? null : (
+        <g key={i}>
+          <circle cx={x(i)} cy={y(v)} r={4} fill="var(--accent)" />
+          <text x={x(i)} y={y(v) - 9} textAnchor="middle" fontSize="11" fill="var(--ink)">{v.toFixed(1)}</text>
+        </g>
+      )))}
+      {pts.map((_, i) => <text key={i} x={x(i)} y={H - 10} textAnchor="middle" fontSize="11" fill="var(--muted)">{i + 1}</text>)}
+    </svg>
+  );
+}
 
 export default function PlayerPage({ id, players, leagues, week, userId, trending }: Props) {
   const p = players[id];
@@ -77,8 +116,6 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
         )}
       </div>
 
-      <Opportunity gsis={p.gsis} name={p.name} pos={p.pos} team={p.team} />
-
       <h3>League stats</h3>
       <nav aria-label="Leagues">
         {leagues.map((l) => (
@@ -90,6 +127,7 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
         const played = pts.slice(0, -1).filter((x): x is number => x != null && x !== 0);
         const l3 = played.slice(-3);
         return (
+          <>
           <section className="panel">
             <p>{owner === null ? <b>Available as a free agent</b> : mine ? <b>On your team</b> : <>Owned by <b>{owner}</b></>}</p>
             <div className="facts">
@@ -97,7 +135,6 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
               <div><span>Average</span><strong>{f(played.length ? sum(played) / played.length : undefined)}</strong></div>
               <div><span>Last 3</span><strong>{f(l3.length ? sum(l3) / l3.length : undefined)}</strong></div>
               <div><span>Total</span><strong>{f(played.length ? sum(played) : undefined)}</strong></div>
-              <div><span>Per week</span><Spark pts={pts} /></div>
             </div>
             <div className="scroll">
               <table className="weeks">
@@ -107,8 +144,16 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
             </div>
             <p className="note">Weekly points use this league's scoring and only exist for weeks the player was on a roster.</p>
           </section>
+          <h3>Per week</h3>
+          <section className="panel">
+            <WeekChart pts={pts} />
+            <p className="note">Points by week in this league's scoring. Gaps are weeks the player wasn't on a roster.</p>
+          </section>
+          </>
         );
       })()}
+
+      <Opportunity gsis={p.gsis} name={p.name} pos={p.pos} team={p.team} />
     </>
   );
 }
