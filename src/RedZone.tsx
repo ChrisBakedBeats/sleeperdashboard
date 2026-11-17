@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import WeekChart from "./WeekChart";
 import type { Group } from "./metrics";
 import { loadRedZone, rzCards, rzColumns, weekRows, type RedZoneData } from "./redzone";
 
@@ -9,6 +10,7 @@ export default function RedZone({ id, group, played, team }: Props) {
   useEffect(() => { loadRedZone().then(setD).catch(() => setD("missing")); }, []);
 
   let body;
+  let chart: ReactNode = null;
   if (d === undefined) body = <p className="note">Loading red zone data…</p>;
   else if (d === "missing") body = <p className="note">The red zone file wasn't found. It's built during each deploy. When running locally, run npm run data first.</p>;
   else if (d.error) body = <p className="note">The red zone data didn't build: {d.error}</p>;
@@ -16,6 +18,26 @@ export default function RedZone({ id, group, played, team }: Props) {
     const rows = weekRows(d.players[id]?.weeks ?? [], played, team);
     const cols = rzColumns(group);
     const recent = [...rows].reverse().slice(0, 8);
+    const touches = (r: (typeof rows)[number]) => (group === "QB" ? r.rzpa + r.rzc : r.rzt + r.rzc);
+    const last = Math.max(0, d.through ?? 0, ...rows.map((r) => r.w));
+    if (last > 0) {
+      const pts = Array.from({ length: last }, (_, i) => {
+        const r = rows.find((x) => x.w === i + 1);
+        return r ? touches(r) : undefined;
+      });
+      const vals = pts.filter((v): v is number => v != null);
+      chart = (
+        <>
+          <h3>Red zone touches per game</h3>
+          <section className="panel">
+            <WeekChart pts={pts} avg={vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : undefined} minTop={4} decimals={0} />
+            <p className="note">
+              {group === "QB" ? "Red zone pass attempts plus rushes" : "Red zone carries plus targets"} in each game this season. The dashed line is the season average. Gaps are weeks the player didn't play.
+            </p>
+          </section>
+        </>
+      );
+    }
     body = (
       <>
         <dl className="bio">
@@ -36,5 +58,5 @@ export default function RedZone({ id, group, played, team }: Props) {
       </>
     );
   }
-  return (<><h3>Red zone usage</h3><section className="panel">{body}</section></>);
+  return (<><h3>Red zone usage</h3><section className="panel">{body}</section>{chart}</>);
 }

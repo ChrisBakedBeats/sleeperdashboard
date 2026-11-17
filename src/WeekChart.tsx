@@ -1,12 +1,13 @@
-type Props = { pts: (number | undefined)[]; avg?: number };
+type Props = { pts: (number | undefined)[]; avg?: number; minTop?: number; decimals?: number };
 
 // Line chart with one point per week. Missing weeks leave a gap. An optional dashed line marks the average.
-export default function WeekChart({ pts, avg }: Props) {
+export default function WeekChart({ pts, avg, minTop = 20, decimals = 1 }: Props) {
   const W = 720, H = 260, L = 40, R = 12, T = 20, B = 30;
   const vals = pts.filter((p): p is number => p != null);
-  const top = Math.max(20, ...vals, avg ?? 0);
+  const top = Math.max(minTop, ...vals, avg ?? 0);
   const bottom = Math.min(0, ...vals);
-  const step = top - bottom > 40 ? 20 : 10;
+  const range = top - bottom;
+  const step = range > 40 ? 20 : range > 12 ? 10 : range > 6 ? 2 : 1;
   const hi = Math.ceil(top / step) * step;
   const lo = Math.floor(bottom / step) * step;
   const slot = (W - L - R) / pts.length;
@@ -39,7 +40,7 @@ export default function WeekChart({ pts, avg }: Props) {
       {pts.map((v, i) => (v == null ? null : (
         <g key={i}>
           <circle cx={x(i)} cy={y(v)} r={4} fill="var(--accent)" />
-          <text x={x(i)} y={y(v) - 9} textAnchor="middle" fontSize="11" fill="var(--ink)">{v.toFixed(1)}</text>
+          <text x={x(i)} y={y(v) - 9} textAnchor="middle" fontSize="11" fill="var(--ink)">{v.toFixed(decimals)}</text>
         </g>
       )))}
       {pts.map((_, i) => <text key={i} x={x(i)} y={H - 10} textAnchor="middle" fontSize="11" fill="var(--muted)">{i + 1}</text>)}
