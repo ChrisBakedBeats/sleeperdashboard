@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { cards, columns, findPlayer, groupOf, loadMetrics, type Metrics } from "./metrics";
+import { useEffect, useState, type ReactNode } from "react";
+import WeekChart from "./WeekChart";
+import { cards, columns, findPlayer, groupOf, loadMetrics, oppPts, type Metrics } from "./metrics";
 
 export default function Opportunity({ gsis, name, pos, team }: { gsis?: string | null; name: string; pos: string; team: string }) {
   const [m, setM] = useState<Metrics | "missing">();
@@ -7,6 +8,7 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
 
   const group = groupOf(pos);
   let body;
+  let chart: ReactNode = null;
   if (!group) body = <p className="note">Opportunity metrics cover QB, RB, WR, and TE. Kickers and defenses depend on team and matchup context, so they aren't included yet.</p>;
   else if (m === undefined) body = <p className="note">Loading metrics…</p>;
   else if (m === "missing") body = <p className="note">The metrics file wasn't found. It's built during each deploy. When running locally, run npm run data first.</p>;
@@ -17,6 +19,21 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
     else {
       const cols = columns(group);
       const recent = [...rec.weeks].reverse().slice(0, 8);
+      const last = m.through ?? Math.max(...rec.weeks.map((w) => w.w));
+      const pts = Array.from({ length: last }, (_, i) => {
+        const w = rec.weeks.find((x) => x.w === i + 1);
+        return w ? oppPts(w, group) : undefined;
+      });
+      const vals = pts.filter((v): v is number => v != null);
+      chart = (
+        <>
+          <h3>Opportunity points per game</h3>
+          <section className="panel">
+            <WeekChart pts={pts} avg={vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : undefined} />
+            <p className="note">Estimated PPR value of each game's volume for the {m.season} season. The dashed line is the season average. Gaps are weeks the player didn't play.</p>
+          </section>
+        </>
+      );
       body = (
         <>
           <dl className="bio">
@@ -39,5 +56,5 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
       );
     }
   }
-  return (<><h3>Opportunity</h3><section className="panel">{body}</section></>);
+  return (<><h3>Opportunity</h3><section className="panel">{body}</section>{chart}</>);
 }
