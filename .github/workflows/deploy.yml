@@ -26,6 +26,7 @@ jobs:
           node-version: 20
       - run: npm install
       - run: node scripts/fetch-metrics.mjs
+      - run: node scripts/fetch-redzone.mjs
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
