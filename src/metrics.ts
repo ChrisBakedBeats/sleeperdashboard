@@ -77,10 +77,11 @@ const nameKey = (s: string) => {
   const t = norm(s).split(" ");
   return t.length < 2 ? t[0] : `${t[0][0]} ${t[t.length - 1]}`;
 };
-export function findPlayer(m: Metrics, gsis: string | null | undefined, name: string, pos: string, team: string) {
-  if (gsis && m.players[gsis]) return m.players[gsis];
+export function findEntry(m: Metrics, gsis: string | null | undefined, name: string, pos: string, team: string): [string, Metrics["players"][string]] | undefined {
+  if (gsis && m.players[gsis]) return [gsis, m.players[gsis]];
   const g = groupOf(pos);
   const key = nameKey(name);
-  const hits = Object.values(m.players).filter((p) => p.name && groupOf(p.pos) === g && nameKey(p.name) === key);
-  return hits.find((p) => p.team === team) ?? (hits.length === 1 ? hits[0] : undefined);
+  const hits = Object.entries(m.players).filter(([, p]) => p.name && groupOf(p.pos) === g && nameKey(p.name) === key);
+  return hits.find(([, p]) => p.team === team) ?? (hits.length === 1 ? hits[0] : undefined);
 }
+export const findPlayer = (...a: Parameters<typeof findEntry>) => findEntry(...a)?.[1];

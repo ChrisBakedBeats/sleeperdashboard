@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import WeekChart from "./WeekChart";
-import { cards, columns, findPlayer, groupOf, loadMetrics, oppPts, type Metrics } from "./metrics";
+import RedZone from "./RedZone";
+import { cards, columns, findEntry, groupOf, loadMetrics, oppPts, type Metrics } from "./metrics";
 
 export default function Opportunity({ gsis, name, pos, team }: { gsis?: string | null; name: string; pos: string; team: string }) {
   const [m, setM] = useState<Metrics | "missing">();
@@ -9,12 +10,14 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
   const group = groupOf(pos);
   let body;
   let chart: ReactNode = null;
+  let rz: ReactNode = null;
   if (!group) body = <p className="note">Opportunity metrics cover QB, RB, WR, and TE. Kickers and defenses depend on team and matchup context, so they aren't included yet.</p>;
   else if (m === undefined) body = <p className="note">Loading metrics…</p>;
   else if (m === "missing") body = <p className="note">The metrics file wasn't found. It's built during each deploy. When running locally, run npm run data first.</p>;
   else if (m.error) body = <p className="note">The metrics data didn't build: {m.error}</p>;
   else {
-    const rec = findPlayer(m, gsis, name, pos, team);
+    const hit = findEntry(m, gsis, name, pos, team);
+    const rec = hit?.[1];
     if (!rec) body = <p className="note">No {m.season} game data was found for this player. They may not have played yet, or couldn't be matched by NFL ID or name.</p>;
     else {
       const cols = columns(group);
@@ -34,6 +37,7 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
           </section>
         </>
       );
+      rz = <RedZone id={hit![0]} group={group} played={rec.weeks.map((w) => w.w)} team={rec.team} />;
       body = (
         <>
           <dl className="bio">
@@ -56,5 +60,5 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
       );
     }
   }
-  return (<><h3>Opportunity</h3><section className="panel">{body}</section>{chart}</>);
+  return (<><h3>Opportunity</h3><section className="panel">{body}</section>{chart}{rz}</>);
 }
