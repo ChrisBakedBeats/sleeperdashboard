@@ -2,9 +2,14 @@ import { useEffect, useState } from "react";
 import * as S from "./sleeper";
 import WeekChart from "./WeekChart";
 import Opportunity from "./Opportunity";
+import { findIn } from "./metrics";
+import { loadStats, unsupportedKeys, validate, weeklyPoints } from "./stats";
 
 type Props = { id: string; players: S.PlayerMap; leagues: S.League[]; week: number; userId: string; trending: S.Trend[] };
-type Row = { league: S.League; owner: string | null; mine: boolean; pts: (number | undefined)[] };
+type Row = {
+  league: S.League; owner: string | null; mine: boolean; pts: (number | undefined)[];
+  calc: boolean; check?: { match: number; total: number }; unsupported: string[];
+};
 
 const f = (n?: number) => (n == null ? "-" : n.toFixed(1));
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
@@ -20,18 +25,26 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
     if (!league) return;
     let live = true;
     setRow(undefined);
-    S.getLeagueBundle(league.league_id, week)
-      .then((b) => {
+    Promise.all([S.getLeagueBundle(league.league_id, week), loadStats().catch(() => null)])
+      .then(([b, st]) => {
         const r = b.rosters.find((x) => [...(x.players ?? []), ...(x.reserve ?? []), ...(x.taxi ?? [])].includes(id));
         const u = b.users.find((x) => x.user_id === r?.owner_id);
         const season = S.toSeasonPoints(b.byWeek);
-        const pts = Array.from({ length: b.byWeek.length }, (_, i) => season[id]?.[i]);
+        let pts = Array.from({ length: b.byWeek.length }, (_, i) => season[id]?.[i]);
+        const sc = league.scoring_settings;
+        let calc = false;
+        let check: Row["check"];
+        if (st && !st.error && sc) {
+          const hit = p ? findIn(st.players, p.gsis, p.name, p.pos, p.team) : undefined;
+          if (hit) { pts = weeklyPoints(hit[1], sc, b.byWeek.length); calc = true; }
+          check = validate(b.byWeek.slice(0, -1), players, st, sc);
+        }
         const owner = r ? u?.metadata?.team_name || u?.display_name || `Team ${r.roster_id}` : null;
-        if (live) setRow({ league, owner, mine: r?.owner_id === userId, pts });
+        if (live) setRow({ league, owner, mine: r?.owner_id === userId, pts, calc, check, unsupported: sc ? unsupportedKeys(sc) : [] });
       })
       .catch(() => live && setRow("error"));
     return () => { live = false; };
-  }, [id, league?.league_id, week, userId]);
+  }, [id, league?.league_id, week, userId, players]);
 
   const back = <a className="back" href="#/">Back to dashboard</a>;
   if (Object.keys(players).length === 0) return <>{back}<p className="note">Loading player data…</p></>;
@@ -84,8 +97,8 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
         ))}
       </nav>
       {!league ? <p className="note">No leagues found for this season.</p> : row === undefined ? <p className="note">Loading {league.name}…</p> : row === "error" ? <p className="error" role="alert">Couldn't load {league.name}. Try again in a moment.</p> : (() => {
-        const { owner, mine, pts } = row;
-        const played = pts.slice(0, -1).filter((x): x is number => x != null && x !== 0);
+        const { owner, mine, pts, calc, check, unsupported } = row;
+        const played = pts.slice(0, -1).filter((x): x is number => x != null && (calc || x !== 0));
         const l3 = played.slice(-3);
         return (
           <>
@@ -103,12 +116,18 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
                 <tbody><tr>{pts.map((x, i) => <td key={i}>{f(x)}</td>)}</tr></tbody>
               </table>
             </div>
-            <p className="note">Weekly points use this league's scoring and only exist for weeks the player was on a roster.</p>
+            {calc ? (
+              <p className="note">Points are calculated from NFL stats using this league's scoring settings, so every game the player played is included, whether or not he was on a roster. Average, Last 3, and Total count games played. A dash means no game that week (bye or inactive).</p>
+            ) : (
+              <p className="note">Calculated stats weren't available for this player, so these points come from league matchups and only cover weeks he was on a roster.</p>
+            )}
+            {check && check.total > 0 && <p className="note">Check: the calculated points match Sleeper's own scores for {check.match} of {check.total} rostered player-weeks in this league (completed weeks).</p>}
+            {unsupported.length > 0 && <p className="note">Scoring rules not modeled: {unsupported.join(", ")}.</p>}
           </section>
           <h3>Per week</h3>
           <section className="panel">
             <WeekChart pts={pts} />
-            <p className="note">Points by week in this league's scoring. Gaps are weeks the player wasn't on a roster.</p>
+            <p className="note">Points by week in this league's scoring. Gaps are weeks with no data: {calc ? "no game (bye or inactive)" : "the player wasn't on a roster"}.</p>
           </section>
           </>
         );

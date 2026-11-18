@@ -6,6 +6,7 @@ import PlayerLink from "./PlayerLink";
 import PlayerPage from "./PlayerPage";
 import Splash from "./Splash";
 import ThemeToggle from "./ThemeToggle";
+import { loadStats, mergeCalc, type StatsData } from "./stats";
 
 const SAVED_USER = "sleeper-username";
 const savedUser = () => { try { return localStorage.getItem(SAVED_USER); } catch { return null; } };
@@ -132,6 +133,8 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
       .catch((e) => setError((e as Error).message));
   }, [league.league_id, week]);
 
+  const [stats, setStats] = useState<StatsData | null>(null);
+  useEffect(() => { loadStats().then(setStats).catch(() => setStats(null)); }, []);
   const season = useMemo(() => (data ? S.toSeasonPoints(data.byWeek) : {}), [data]);
 
   if (error) return <p className="error" role="alert">{error}</p>;
@@ -155,6 +158,7 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
 
   const starters = myM?.starters ?? mine?.starters ?? [];
   const bench = (myM?.players ?? mine?.players ?? []).filter((p) => !starters.includes(p));
+  const rosterSeason = mergeCalc(season, [...starters, ...bench], players, stats, league.scoring_settings, weeks);
 
   return (
     <>
@@ -179,7 +183,8 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
 
       <RosterTable
         players={players}
-        season={season}
+        season={rosterSeason.season}
+        calc={rosterSeason.calc}
         week={selWeek}
         starters={starters}
         slots={starters.map((_, i) => league.roster_positions[i] ?? "-")}

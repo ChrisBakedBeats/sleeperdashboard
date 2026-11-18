@@ -11,6 +11,7 @@ export type SleeperUser = { user_id: string; display_name: string };
 export type League = {
   league_id: string; name: string; total_rosters: number; roster_positions: string[];
   settings?: { waiver_type?: number; waiver_budget?: number };
+  scoring_settings?: Record<string, number>;
 };
 export type Roster = {
   roster_id: number;

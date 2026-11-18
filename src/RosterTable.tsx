@@ -1,7 +1,7 @@
 import type { PlayerMap, SeasonPoints } from "./sleeper";
 import PlayerLink from "./PlayerLink";
 
-type Props = { players: PlayerMap; season: SeasonPoints; week: number; starters: string[]; slots: string[]; bench: string[] };
+type Props = { players: PlayerMap; season: SeasonPoints; week: number; starters: string[]; slots: string[]; bench: string[]; calc?: Set<string> };
 
 const f = (n?: number) => (n == null ? "-" : n.toFixed(1));
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
@@ -26,11 +26,11 @@ export function Spark({ pts }: { pts: (number | undefined)[] }) {
   );
 }
 
-function Row({ id, slot, players, season, week }: { id: string; slot: string; players: PlayerMap; season: SeasonPoints; week: number }) {
+function Row({ id, slot, players, season, week, calc }: { id: string; slot: string; players: PlayerMap; season: SeasonPoints; week: number; calc?: Set<string> }) {
   const p = players[id];
   const pts = Array.from({ length: week }, (_, i) => season[id]?.[i]);
   const done = pts.slice(0, week - 1);
-  const played = done.filter((x): x is number => x != null && x !== 0);
+  const played = done.filter((x): x is number => x != null && (calc?.has(id) || x !== 0));
   const avg = played.length ? sum(played) / played.length : undefined;
   const l3 = played.slice(-3);
   const l3avg = l3.length ? sum(l3) / l3.length : undefined;
@@ -48,7 +48,7 @@ function Row({ id, slot, players, season, week }: { id: string; slot: string; pl
   );
 }
 
-export default function RosterTable({ players, season, week, starters, slots, bench }: Props) {
+export default function RosterTable({ players, season, week, starters, slots, bench, calc }: Props) {
   const head = (label: string) => <tr className="group"><th colSpan={8}>{label}</th></tr>;
   return (
     <section className="panel wide">
@@ -60,13 +60,13 @@ export default function RosterTable({ players, season, week, starters, slots, be
           </thead>
           <tbody>
             {head("Starters")}
-            {starters.map((id, i) => <Row key={"s" + i + id} id={id} slot={slots[i]} players={players} season={season} week={week} />)}
+            {starters.map((id, i) => <Row key={"s" + i + id} id={id} slot={slots[i]} players={players} season={season} week={week} calc={calc} />)}
             {head("Bench")}
-            {bench.map((id) => <Row key={"b" + id} id={id} slot="BN" players={players} season={season} week={week} />)}
+            {bench.map((id) => <Row key={"b" + id} id={id} slot="BN" players={players} season={season} week={week} calc={calc} />)}
           </tbody>
         </table>
       </div>
-      <p className="note">Points use your league's scoring. Avg, Last 3, and Total cover completed weeks and skip zero-point weeks, so byes and inactive games don't drag them down. The current week may be partial.</p>
+      <p className="note">Points use your league's scoring. When NFL stats are available, every game the player played is counted, even weeks before he joined your roster. Otherwise only weeks on a roster show, and zero-point weeks are skipped. Avg, Last 3, and Total cover completed weeks. The current week may be partial.</p>
     </section>
   );
 }
