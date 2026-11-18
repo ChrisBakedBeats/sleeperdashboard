@@ -10,7 +10,7 @@ const candidates = [
   `${base}/stats_player/stats_player_week_${season}.csv`,
   `${base}/player_stats/player_stats_${season}.csv`,
 ];
-const expected = ["carries", "targets", "receptions", "receiving_air_yards", "target_share", "air_yards_share", "wopr", "attempts", "passing_air_yards", "fantasy_points_ppr"];
+const expected = ["carries", "targets", "receptions", "receiving_air_yards", "target_share", "air_yards_share", "wopr", "attempts", "passing_air_yards", "fantasy_points_ppr", "completions", "passing_yards", "passing_tds", "passing_interceptions", "rushing_yards", "rushing_tds", "receiving_yards", "receiving_tds", "rushing_fumbles_lost", "receiving_fumbles_lost", "sack_fumbles_lost", "fg_made", "pat_made"];
 
 function parseCsv(text) {
   const rows = [];
@@ -44,6 +44,8 @@ async function download() {
 }
 
 const out = { generated: new Date().toISOString(), season, players: {} };
+const statsPlayers = {};
+let statsThrough = 0;
 
 try {
   const { url, text } = await download();
@@ -69,10 +71,34 @@ try {
     const type = str(r, "season_type");
     if (type && type !== "REG") continue;
     const pos = str(r, "position");
-    if (!["QB", "RB", "FB", "WR", "TE"].includes(pos)) continue;
+    if (!["QB", "RB", "FB", "WR", "TE", "K"].includes(pos)) continue;
     const id = str(r, "player_id");
     const week = num(r, "week");
     if (!id || !week) continue;
+
+    // Full stat line, named like Sleeper's scoring settings, so any league's scoring can be applied later.
+    const n = (k) => num(r, k) ?? 0;
+    const st = {
+      pass_att: n("attempts"), pass_cmp: n("completions"), pass_yd: n("passing_yards"), pass_td: n("passing_tds"),
+      pass_int: n("passing_interceptions"), pass_2pt: n("passing_2pt_conversions"), pass_fd: n("passing_first_downs"), pass_sack: n("sacks_suffered"),
+      rush_att: n("carries"), rush_yd: n("rushing_yards"), rush_td: n("rushing_tds"), rush_2pt: n("rushing_2pt_conversions"), rush_fd: n("rushing_first_downs"),
+      rec: n("receptions"), rec_tgt: n("targets"), rec_yd: n("receiving_yards"), rec_td: n("receiving_tds"), rec_2pt: n("receiving_2pt_conversions"), rec_fd: n("receiving_first_downs"),
+      fum: n("rushing_fumbles") + n("receiving_fumbles") + n("sack_fumbles"),
+      fum_lost: n("rushing_fumbles_lost") + n("receiving_fumbles_lost") + n("sack_fumbles_lost"),
+      st_td: n("special_teams_tds"),
+      fgm: n("fg_made"), fgmiss: n("fg_missed"), fgm_yds: n("fg_made_distance"), xpm: n("pat_made"), xpmiss: n("pat_missed"),
+      fgm_0_19: n("fg_made_0_19"), fgm_20_29: n("fg_made_20_29"), fgm_30_39: n("fg_made_30_39"), fgm_40_49: n("fg_made_40_49"),
+      fgm_50_59: n("fg_made_50_59"), fgm_60p: n("fg_made_60_"), fgm_50p: n("fg_made_50_59") + n("fg_made_60_"),
+      fgmiss_0_19: n("fg_missed_0_19"), fgmiss_20_29: n("fg_missed_20_29"), fgmiss_30_39: n("fg_missed_30_39"), fgmiss_40_49: n("fg_missed_40_49"),
+      fgmiss_50_59: n("fg_missed_50_59"), fgmiss_60p: n("fg_missed_60_"), fgmiss_50p: n("fg_missed_50_59") + n("fg_missed_60_"),
+    };
+    st.pass_inc = Math.max(0, st.pass_att - st.pass_cmp);
+    const nonzero = Object.fromEntries(Object.entries(st).filter(([, v]) => v));
+    if (Object.keys(nonzero).length) {
+      (statsPlayers[id] ??= { name: str(r, "player_display_name") || str(r, "player_name"), pos: pos === "FB" ? "RB" : pos, team: str(r, "team") || str(r, "recent_team"), weeks: [] }).weeks.push({ w: week, s: nonzero });
+      statsThrough = Math.max(statsThrough, week);
+    }
+    if (pos === "K") continue; // kickers only feed the full stat lines, not the opportunity metrics
     const w = {
       w: week, car: num(r, "carries") ?? 0, tgt: num(r, "targets") ?? 0, rec: num(r, "receptions") ?? 0,
       ay: num(r, "receiving_air_yards") ?? 0, ts: num(r, "target_share"), ays: num(r, "air_yards_share"), wopr: num(r, "wopr"),
@@ -83,6 +109,7 @@ try {
     through = Math.max(through, week);
   }
   for (const p of Object.values(out.players)) p.weeks.sort((a, b) => a.w - b.w);
+  for (const p of Object.values(statsPlayers)) p.weeks.sort((a, b) => a.w - b.w);
   out.through = through;
   out.source = url;
   if (!through) throw new Error(`No regular-season rows found for ${season}`);
@@ -94,3 +121,8 @@ try {
 
 await mkdir("public/data", { recursive: true });
 await writeFile("public/data/metrics.json", JSON.stringify(out, (k, v) => (typeof v === "number" ? Math.round(v * 1000) / 1000 : v)));
+
+await writeFile(
+  "public/data/stats.json",
+  JSON.stringify({ generated: out.generated, season, through: statsThrough, source: out.source, error: out.error, players: statsPlayers }, (k, v) => (typeof v === "number" ? Math.round(v * 1000) / 1000 : v)),
+);
