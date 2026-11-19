@@ -25,14 +25,13 @@ export default function RedZone({ id, group, played, team }: Props) {
         const r = rows.find((x) => x.w === i + 1);
         return r ? touches(r) : undefined;
       });
-      const vals = pts.filter((v): v is number => v != null);
       chart = (
         <>
           <h3>Red zone touches per game</h3>
           <section className="panel">
-            <WeekChart pts={pts} avg={vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : undefined} minTop={4} decimals={0} />
+            <WeekChart pts={pts} minTop={4} decimals={0} />
             <p className="note">
-              {group === "QB" ? "Red zone pass attempts plus rushes" : "Red zone carries plus targets"} in each game this season. The dashed line is the season average. Gaps are weeks the player didn't play.
+              {group === "QB" ? "Red zone pass attempts plus rushes" : "Red zone carries plus targets"} in each game this season. Gaps are weeks the player didn't play.
             </p>
           </section>
         </>

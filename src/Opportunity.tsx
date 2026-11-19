@@ -27,13 +27,12 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
         const w = rec.weeks.find((x) => x.w === i + 1);
         return w ? oppPts(w, group) : undefined;
       });
-      const vals = pts.filter((v): v is number => v != null);
       chart = (
         <>
           <h3>Opportunity points per game</h3>
           <section className="panel">
-            <WeekChart pts={pts} avg={vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : undefined} />
-            <p className="note">Estimated PPR value of each game's volume for the {m.season} season. The dashed line is the season average. Gaps are weeks the player didn't play.</p>
+            <WeekChart pts={pts} />
+            <p className="note">Estimated PPR value of each game's volume for the {m.season} season. Gaps are weeks the player didn't play.</p>
           </section>
         </>
       );
