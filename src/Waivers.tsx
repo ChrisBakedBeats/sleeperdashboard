@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import * as S from "./sleeper";
 import PlayerLink from "./PlayerLink";
-import { loadStats, recentForm, type StatsData } from "./stats";
 
 const POS = ["ALL", "QB", "RB", "WR", "TE", "K", "DEF"];
 
@@ -13,8 +12,6 @@ export default function Waivers({ league, userId, week, players, trending }: Pro
   const [txns, setTxns] = useState<S.Txn[]>([]);
   const [pos, setPos] = useState("ALL");
   const [error, setError] = useState<string>();
-  const [stats, setStats] = useState<StatsData | null>(null);
-  useEffect(() => { loadStats().then(setStats).catch(() => setStats(null)); }, []);
 
   useEffect(() => {
     (async () => {
@@ -76,11 +73,10 @@ export default function Waivers({ league, userId, week, players, trending }: Pro
           <ol className="plain">
             {available.slice(0, 20).map((t) => {
               const p = players[t.player_id];
-              const form = recentForm(stats, p, league.scoring_settings, week);
               return (
                 <li key={t.player_id}>
                   <span><PlayerLink id={t.player_id} name={p.name} /> <small>{p.pos} {p.team}</small></span>
-                  <span>{p.injury && <b className="injury">{p.injury} </b>}{form && <small>{form.avg.toFixed(1)} avg, {form.l3.toFixed(1)} last 3 </small>}<b>{t.count.toLocaleString()} adds</b></span>
+                  <span>{p.injury && <b className="injury">{p.injury} </b>}<b>{t.count.toLocaleString()} adds</b></span>
                 </li>
               );
             })}
