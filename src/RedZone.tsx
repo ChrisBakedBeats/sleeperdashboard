@@ -17,9 +17,9 @@ export default function RedZone({ id, group, played, team }: Props) {
   else {
     const rows = weekRows(d.players[id]?.weeks ?? [], played, team);
     const cols = rzColumns(group);
-    const recent = [...rows].reverse().slice(0, 8);
-    const touches = (r: (typeof rows)[number]) => (group === "QB" ? r.rzpa + r.rzc : r.rzt + r.rzc);
     const last = Math.max(0, d.through ?? 0, ...rows.map((r) => r.w));
+    const byWeek = new Map(rows.map((r) => [r.w, r]));
+    const touches = (r: (typeof rows)[number]) => (group === "QB" ? r.rzpa + r.rzc : r.rzt + r.rzc);
     if (last > 0) {
       const pts = Array.from({ length: last }, (_, i) => {
         const r = rows.find((x) => x.w === i + 1);
@@ -47,13 +47,16 @@ export default function RedZone({ id, group, played, team }: Props) {
           <table className="weeks">
             <thead><tr><th>Week</th>{cols.map((c) => <th key={c.key}>{c.label}</th>)}</tr></thead>
             <tbody>
-              {recent.map((r) => <tr key={r.w}><td>{r.w}</td>{cols.map((c) => <td key={c.key}>{c.get(r)}</td>)}</tr>)}
+              {Array.from({ length: last }, (_, i) => last - i).map((wk) => {
+                const r = byWeek.get(wk);
+                return <tr key={wk}><td>{wk}</td>{cols.map((c) => <td key={c.key}>{r ? c.get(r) : "-"}</td>)}</tr>;
+              })}
             </tbody>
           </table>
         </div>
         <p className="note">
           Red zone means inside the opponent's 20-yard line. Counts include every game the player played this season and come from play-by-play data through week {d.through}.
-          Team shares compare a player's red zone carries or targets to the team's total in the same games. Two-point tries are excluded.
+          Team shares compare a player's red zone carries or targets to the team's total in the same games. Two-point tries are excluded. A dash means the player didn't play that week.
         </p>
       </>
     );

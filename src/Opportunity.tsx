@@ -21,8 +21,8 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
     if (!rec) body = <p className="note">No {m.season} game data was found for this player. They may not have played yet, or couldn't be matched by NFL ID or name.</p>;
     else {
       const cols = columns(group);
-      const recent = [...rec.weeks].reverse().slice(0, 8);
       const last = m.through ?? Math.max(...rec.weeks.map((w) => w.w));
+      const byWeek = new Map(rec.weeks.map((w) => [w.w, w]));
       const pts = Array.from({ length: last }, (_, i) => {
         const w = rec.weeks.find((x) => x.w === i + 1);
         return w ? oppPts(w, group) : undefined;
@@ -47,14 +47,17 @@ export default function Opportunity({ gsis, name, pos, team }: { gsis?: string |
             <table className="weeks">
               <thead><tr><th>Week</th>{cols.map((c) => <th key={c.key}>{c.label}</th>)}</tr></thead>
               <tbody>
-                {recent.map((w) => <tr key={w.w}><td>{w.w}</td>{cols.map((c) => <td key={c.key}>{c.fmt(w)}</td>)}</tr>)}
+                {Array.from({ length: last }, (_, i) => last - i).map((wk) => {
+                  const w = byWeek.get(wk);
+                  return <tr key={wk}><td>{wk}</td>{cols.map((c) => <td key={c.key}>{w ? c.fmt(w) : "-"}</td>)}</tr>;
+                })}
               </tbody>
             </table>
           </div>
           <p className="note">
             Data through week {m.through}, updated {m.generated ? new Date(m.generated).toLocaleDateString() : "recently"}.
             Opportunity points estimate what a player's volume is normally worth in PPR scoring (about 0.65 per carry, 1.7 per target, and 0.45 per pass attempt), so treat them as a rough baseline.
-            Points over expected is actual PPR points minus that baseline: positive can mean regression risk, negative can mean production is due.
+            Points over expected is actual PPR points minus that baseline: positive can mean regression risk, negative can mean production is due. A dash means no volume that week (a bye, an inactive game, or no carries, targets, or attempts).
           </p>
         </>
       );
