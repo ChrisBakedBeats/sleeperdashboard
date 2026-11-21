@@ -53,7 +53,7 @@ export function createCollector() {
     const k = `${tm}|${w}`;
     let t = dst.get(k);
     if (!t) {
-      t = { tm, w, sack: 0, int: 0, fum_rec: 0, def_st_fum_rec: 0, ff: 0, def_td: 0, st_td: 0, safe: 0, blk_kick: 0, def_3_and_out: 0, def_4_and_stop: 0, pts_allow: 0, yds_allow: 0 };
+      t = { tm, w, sack: 0, int: 0, fum_rec: 0, ff: 0, def_td: 0, st_td: 0, safe: 0, blk_kick: 0, def_3_and_out: 0, def_4_and_stop: 0, pts_allow: 0, yds_allow: 0 };
       dst.set(k, t);
     }
     return t;
@@ -75,11 +75,8 @@ export function createCollector() {
     const scrimmage = play === "pass" || play === "run";
     if (flag(row, c.sack)) t.sack++;
     if (flag(row, c.int)) t.int++;
-    if (flag(row, c.fl)) {
-      if (scrimmage) t.fum_rec++;
-      else if (play === "punt" || play === "kickoff") dstSlot(off, w).def_st_fum_rec++; // the kicking team recovers a muff
-    }
-    if (flag(row, c.ff) && scrimmage) t.ff++;
+    if (flag(row, c.fl)) t.fum_rec++;
+    if (flag(row, c.ff)) t.ff++;
     if (flag(row, c.safety)) t.safe++;
     if (flag(row, c.punt_blocked) || val(row, c.fgres) === "blocked" || val(row, c.xpres) === "blocked") t.blk_kick++;
     if (scrimmage && flag(row, c.f4)) t.def_4_and_stop++;
