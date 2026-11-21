@@ -69,21 +69,22 @@ export function columns(g: Group): Col[] {
   return [{ key: "att", label: "Att", fmt: (w) => f0(w.att) }, { key: "car", label: "Rush", fmt: (w) => f0(w.car) }, { key: "pay", label: "Air yds", fmt: (w) => (w.pay ? f0(w.pay) : d) }, ...tail];
 }
 
-// Match a Sleeper player to NFL stats: by NFL ID first, then by first initial + last name
-// within the same position group. If several players share that name and none is on the
-// same team, return nothing rather than guess.
-const norm = (s: string) => s.toLowerCase().replace(/[.'’]/g, "").replace(/-/g, " ").replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/\s+/g, " ").trim();
-const nameKey = (s: string) => {
-  const t = norm(s).split(" ");
-  return t.length < 2 ? t[0] : `${t[0][0]} ${t[t.length - 1]}`;
-};
+// Match a Sleeper player to NFL stats: by NFL ID first, then by full name within the same position group.
+// First initial plus last name is only used when one side is abbreviated, like "P.Mahomes".
+// If several players share a name and none is on the same team, return nothing rather than guess.
+const norm = (s: string) => s.toLowerCase().replace(/\./g, " ").replace(/['’]/g, "").replace(/-/g, " ").replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/\s+/g, " ").trim();
+export function sameName(a: string, b: string) {
+  const ta = norm(a).split(" "), tb = norm(b).split(" ");
+  if (ta.join(" ") === tb.join(" ")) return true;
+  if (ta[0].length > 1 && tb[0].length > 1) return false;
+  return ta.length > 1 && tb.length > 1 && ta[0][0] === tb[0][0] && ta[ta.length - 1] === tb[tb.length - 1];
+}
 export function findIn<T extends { name?: string; pos: string; team: string }>(
   players: Record<string, T>, gsis: string | null | undefined, name: string, pos: string, team: string,
 ): [string, T] | undefined {
   if (gsis && players[gsis]) return [gsis, players[gsis]];
   const g = groupOf(pos);
-  const key = nameKey(name);
-  const hits = Object.entries(players).filter(([, p]) => p.name && groupOf(p.pos) === g && (g !== null || p.pos === pos) && nameKey(p.name) === key);
+  const hits = Object.entries(players).filter(([, p]) => p.name && groupOf(p.pos) === g && (g !== null || p.pos === pos) && sameName(p.name, name));
   return hits.find(([, p]) => p.team === team) ?? (hits.length === 1 ? hits[0] : undefined);
 }
 export function findEntry(m: Metrics, gsis: string | null | undefined, name: string, pos: string, team: string) {

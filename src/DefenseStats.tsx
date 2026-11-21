@@ -6,9 +6,11 @@ const COLS: { label: string; get: (s: Record<string, number>) => number }[] = [
   { label: "INT", get: (s) => s.int ?? 0 },
   { label: "Fum rec", get: (s) => s.fum_rec ?? 0 },
   { label: "Forced fum", get: (s) => s.ff ?? 0 },
-  { label: "TD", get: (s) => s.def_st_td ?? 0 },
+  { label: "TD", get: (s) => (s.def_td ?? 0) + (s.def_st_td ?? 0) },
   { label: "Safeties", get: (s) => s.safe ?? 0 },
   { label: "Blocked", get: (s) => s.blk_kick ?? 0 },
+  { label: "3 & outs", get: (s) => s.def_3_and_out ?? 0 },
+  { label: "4th stops", get: (s) => s.def_4_and_stop ?? 0 },
   { label: "Pts allowed", get: (s) => s.pts_allow ?? 0 },
   { label: "Yds allowed", get: (s) => s.yds_allow ?? 0 },
 ];

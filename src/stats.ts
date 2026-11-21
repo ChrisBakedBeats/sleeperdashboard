@@ -19,8 +19,21 @@ export function loadStats(): Promise<StatsData> {
     cache = Promise.all([
       json<StatsData>("./data/stats.json"),
       json<StatsData>("./data/defense.json").catch(() => null),
-    ]).then(([st, def]) => {
+      json<StatsData>("./data/plays.json").catch(() => null),
+    ]).then(([st, def, plays]) => {
       if (def && !def.error) Object.assign(st.players, def.players);
+      // Big-play counts (40+ yard plays and long touchdowns) are added onto the matching weekly stat lines.
+      if (plays && !plays.error) {
+        for (const [id, pl] of Object.entries(plays.players)) {
+          const e = st.players[id];
+          if (!e) continue;
+          for (const w of pl.weeks) {
+            let row = e.weeks.find((x) => x.w === w.w);
+            if (!row) { row = { w: w.w, s: {} }; e.weeks.push(row); }
+            Object.assign(row.s, w.s);
+          }
+        }
+      }
       return st;
     });
     cache.catch(() => { cache = undefined; });
@@ -35,12 +48,14 @@ const DIRECT = new Set([
   "fum", "fum_lost", "st_td", "fgm", "fgmiss", "fgm_yds", "xpm", "xpmiss",
   "fgm_0_19", "fgm_20_29", "fgm_30_39", "fgm_40_49", "fgm_50_59", "fgm_50p", "fgm_60p",
   "fgmiss_0_19", "fgmiss_20_29", "fgmiss_30_39", "fgmiss_40_49", "fgmiss_50_59", "fgmiss_50p", "fgmiss_60p",
+  "rush_40p", "rec_40p", "pass_cmp_40p", "rush_td_40p", "rush_td_50p", "rec_td_40p", "rec_td_50p", "pass_td_40p", "pass_td_50p",
   // team defense
-  "sack", "int", "ff", "fum_rec", "def_td", "def_st_td", "safe", "blk_kick",
+  "sack", "int", "ff", "fum_rec", "def_st_fum_rec", "def_td", "def_st_td", "safe", "blk_kick", "def_3_and_out", "def_4_and_stop",
 ]);
 const BONUS = new Set([
   "bonus_pass_yd_300", "bonus_pass_yd_400", "bonus_rush_yd_100", "bonus_rush_yd_200", "bonus_rec_yd_100", "bonus_rec_yd_200",
   "bonus_rec_te", "bonus_rec_rb", "bonus_rec_wr", "bonus_fd_qb", "bonus_fd_rb", "bonus_fd_wr", "bonus_fd_te",
+  "bonus_rush_rec_yd_100", "bonus_rush_rec_yd_200",
 ]);
 const ALLOW = /^(pts|yds)_allow_/;
 
@@ -57,6 +72,8 @@ function bonus(k: string, w: number, s: Stat, pos: string): number {
     case "bonus_rush_yd_200": return atLeast("rush_yd", 200);
     case "bonus_rec_yd_100": return atLeast("rec_yd", 100);
     case "bonus_rec_yd_200": return atLeast("rec_yd", 200);
+    case "bonus_rush_rec_yd_100": return v("rush_yd") + v("rec_yd") >= 100 ? w : 0;
+    case "bonus_rush_rec_yd_200": return v("rush_yd") + v("rec_yd") >= 200 ? w : 0;
     case "bonus_rec_te": return pos === "TE" ? w * v("rec") : 0;
     case "bonus_rec_rb": return pos === "RB" ? w * v("rec") : 0;
     case "bonus_rec_wr": return pos === "WR" ? w * v("rec") : 0;
