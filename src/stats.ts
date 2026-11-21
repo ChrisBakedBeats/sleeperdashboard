@@ -65,14 +65,16 @@ export const unsupportedKeys = (sc: Scoring) =>
 function bonus(k: string, w: number, s: Stat, pos: string): number {
   const v = (x: string) => s[x] ?? 0;
   const atLeast = (x: string, n: number) => (v(x) >= n ? w : 0);
+  const between = (x: string, lo: number, hi: number) => (v(x) >= lo && v(x) < hi ? w : 0);
   switch (k) {
-    case "bonus_pass_yd_300": return atLeast("pass_yd", 300);
+    // Yardage bonuses are separate tiers: the 100 bonus covers 100-199 yards and the 200 bonus covers 200 or more.
+    case "bonus_pass_yd_300": return between("pass_yd", 300, 400);
     case "bonus_pass_yd_400": return atLeast("pass_yd", 400);
-    case "bonus_rush_yd_100": return atLeast("rush_yd", 100);
+    case "bonus_rush_yd_100": return between("rush_yd", 100, 200);
     case "bonus_rush_yd_200": return atLeast("rush_yd", 200);
-    case "bonus_rec_yd_100": return atLeast("rec_yd", 100);
+    case "bonus_rec_yd_100": return between("rec_yd", 100, 200);
     case "bonus_rec_yd_200": return atLeast("rec_yd", 200);
-    case "bonus_rush_rec_yd_100": return v("rush_yd") + v("rec_yd") >= 100 ? w : 0;
+    case "bonus_rush_rec_yd_100": { const t = v("rush_yd") + v("rec_yd"); return t >= 100 && t < 200 ? w : 0; }
     case "bonus_rush_rec_yd_200": return v("rush_yd") + v("rec_yd") >= 200 ? w : 0;
     case "bonus_rec_te": return pos === "TE" ? w * v("rec") : 0;
     case "bonus_rec_rb": return pos === "RB" ? w * v("rec") : 0;
@@ -95,6 +97,22 @@ function inBucket(k: string, prefix: string, v: number): boolean {
   return v >= lo && v <= hi;
 }
 
+// Sleeper doesn't count first downs on touchdown plays, but the NFL data does.
+const FIRST_DOWN: Record<string, string> = { rush_fd: "rush_td", rec_fd: "rec_td", pass_fd: "pass_td" };
+// A 40+ yard play can't exist in a game where the player's total yards are below 40 (a lateral, for example).
+const BIG_PLAY: Record<string, [string, number]> = {
+  rush_40p: ["rush_yd", 40], rec_40p: ["rec_yd", 40], pass_cmp_40p: ["pass_yd", 40],
+  rush_td_40p: ["rush_yd", 40], rush_td_50p: ["rush_yd", 50], rec_td_40p: ["rec_yd", 40], rec_td_50p: ["rec_yd", 50],
+  pass_td_40p: ["pass_yd", 40], pass_td_50p: ["pass_yd", 50],
+};
+function statValue(k: string, s: Stat): number {
+  const v = s[k] ?? 0;
+  if (FIRST_DOWN[k]) return Math.max(0, v - (s[FIRST_DOWN[k]] ?? 0));
+  const b = BIG_PLAY[k];
+  if (b) return Math.min(v, Math.floor((s[b[0]] ?? 0) / b[1]));
+  return v;
+}
+
 // Points from each scoring rule, so a total can be traced back to individual rules.
 export function contributions(s: Stat, pos: string, sc: Scoring): [string, number][] {
   const p = pos === "FB" ? "RB" : pos;
@@ -102,7 +120,7 @@ export function contributions(s: Stat, pos: string, sc: Scoring): [string, numbe
   const add = (k: string, v: number) => { if (v) out.push([k, v]); };
   for (const [k, w] of Object.entries(sc)) {
     if (!w) continue;
-    if (DIRECT.has(k)) add(k, w * (s[k] ?? 0));
+    if (DIRECT.has(k)) add(k, w * statValue(k, s));
     else if (BONUS.has(k)) add(k, bonus(k, w, s, p));
     else if (k.startsWith("pts_allow_") && s.pts_allow !== undefined) add(k, inBucket(k, "pts_allow_", s.pts_allow) ? w : 0);
     else if (k.startsWith("yds_allow_") && s.yds_allow !== undefined) add(k, inBucket(k, "yds_allow_", s.yds_allow) ? w : 0);
