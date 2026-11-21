@@ -6,6 +6,7 @@ import PlayerLink from "./PlayerLink";
 import PlayerPage from "./PlayerPage";
 import Splash from "./Splash";
 import ThemeToggle from "./ThemeToggle";
+import Standings from "./Standings";
 import { loadStats, mergeCalc, type StatsData } from "./stats";
 
 const SAVED_USER = "sleeper-username";
@@ -30,7 +31,7 @@ export default function App() {
   const [players, setPlayers] = useState<S.PlayerMap>({});
   const [trending, setTrending] = useState<S.Trend[]>([]);
   const [error, setError] = useState<string>();
-  const [view, setView] = useState<"waivers" | "league">("waivers");
+  const [view, setView] = useState<"waivers" | "league" | "standings">("waivers");
   const [playerId, setPlayerId] = useState<string | null>(parseRoute);
 
   useEffect(() => {
@@ -107,12 +108,14 @@ export default function App() {
       <div className="chips" role="tablist">
         <button aria-pressed={view === "waivers"} onClick={() => setView("waivers")}>Waivers</button>
         <button aria-pressed={view === "league"} onClick={() => setView("league")}>Matchup and roster</button>
+        <button aria-pressed={view === "standings"} onClick={() => setView("standings")}>Standings</button>
       </div>
 
       <div className="grid">
         {league && state && userId && view === "waivers" && <Waivers key={league.league_id} league={league} userId={userId} week={state.week} players={players} trending={trending} />}
         {league && state && userId && view === "league" && <LeagueView key={league.league_id} league={league} userId={userId} week={state.week} players={players} />}
-        <section className="panel" hidden={view === "waivers"}>
+        {league && userId && view === "standings" && <Standings key={league.league_id} league={league} userId={userId} />}
+        <section className="panel" hidden={view !== "league"}>
           <h2>Most added in the last 24 hours</h2>
           {trending.length === 0 ? <p className="note">Loading trending players…</p> : (
             <ol className="plain">
@@ -156,8 +159,6 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
     const u = data.users.find((x) => x.user_id === r?.owner_id);
     return u?.metadata?.team_name || u?.display_name || (r ? `Team ${r.roster_id}` : "Unknown");
   };
-  const fpts = (r: S.Roster) => r.settings.fpts + (r.settings.fpts_decimal ?? 0) / 100;
-  const standings = [...data.rosters].sort((a, b) => b.settings.wins - a.settings.wins || fpts(b) - fpts(a));
 
   const mine = data.rosters.find((r) => r.owner_id === userId);
   const myM = weekMatchups.find((m) => m.roster_id === mine?.roster_id);
@@ -199,21 +200,6 @@ function LeagueView({ league, userId, week, players }: { league: S.League; userI
         bench={bench}
       />
 
-      <section className="panel">
-        <h2>Standings</h2>
-        <table>
-          <thead><tr><th>Team</th><th>Record</th><th>Points</th></tr></thead>
-          <tbody>
-            {standings.map((r) => (
-              <tr key={r.roster_id} className={r.owner_id === userId ? "me" : ""}>
-                <td>{teamName(r)}</td>
-                <td>{r.settings.wins}-{r.settings.losses}{r.settings.ties ? `-${r.settings.ties}` : ""}</td>
-                <td>{fpts(r).toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
     </>
   );
 }

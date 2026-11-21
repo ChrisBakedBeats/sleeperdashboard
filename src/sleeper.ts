@@ -20,7 +20,7 @@ export type Roster = {
   reserve?: string[] | null;
   taxi?: string[] | null;
   starters: string[] | null;
-  settings: { wins: number; losses: number; ties: number; fpts: number; fpts_decimal?: number; waiver_budget_used?: number; waiver_position?: number };
+  settings: { wins: number; losses: number; ties: number; fpts: number; fpts_decimal?: number; fpts_against?: number; fpts_against_decimal?: number; waiver_budget_used?: number; waiver_position?: number };
 };
 export type LeagueUser = { user_id: string; display_name: string; metadata?: { team_name?: string } };
 export type Matchup = { roster_id: number; matchup_id: number | null; points: number; players_points?: Record<string, number>; starters?: string[]; players?: string[] };
