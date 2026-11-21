@@ -109,7 +109,7 @@ function statValue(k: string, s: Stat): number {
   const v = s[k] ?? 0;
   if (FIRST_DOWN[k]) return Math.max(0, v - (s[FIRST_DOWN[k]] ?? 0));
   const b = BIG_PLAY[k];
-  if (b) return Math.min(v, Math.floor((s[b[0]] ?? 0) / b[1]));
+  if (b) return Math.max(0, Math.min(v, Math.floor((s[b[0]] ?? 0) / b[1]))); // never below zero, even when the player's yards are negative
   return v;
 }
 
