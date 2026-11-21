@@ -28,14 +28,16 @@ export function createParser(onRow) {
 }
 
 const REQUIRED = ["week", "posteam", "yardline_100", "pass_attempt", "rush_attempt", "receiver_player_id", "rusher_player_id", "passer_player_id"];
-const DEFENSE_COLUMNS = ["defteam", "interception", "fumble_lost", "fumble_forced", "safety", "touchdown", "td_team", "play_type", "punt_blocked", "field_goal_result", "extra_point_result", "two_point_conv_result", "yards_gained", "game_id", "fixed_drive", "fixed_drive_result", "fourth_down_failed", "complete_pass"];
+const DEFENSE_COLUMNS = ["defteam", "interception", "fumble_lost", "fumble_forced", "safety", "touchdown", "td_team", "play_type", "punt_blocked", "field_goal_result", "extra_point_result", "two_point_conv_result", "yards_gained", "game_id", "fixed_drive", "fixed_drive_result", "fourth_down_failed", "complete_pass", "fumble_recovery_1_team", "fumbled_1_team", "defensive_two_point_conv", "desc"];
 const OPTIONAL = ["season_type", "two_point_attempt", "sack", "pass_touchdown", "rush_touchdown", ...DEFENSE_COLUMNS];
 const SLEEPER_TEAM = { LA: "LAR", OAK: "LV", SD: "LAC", STL: "LAR" };
-const BIG = ["rush_40p", "rec_40p", "pass_cmp_40p", "rush_td_40p", "rush_td_50p", "rec_td_40p", "rec_td_50p", "pass_td_40p", "pass_td_50p"];
+const BIG = ["rush_40p", "rec_40p", "pass_cmp_40p", "rush_td_40p", "rush_td_50p", "rec_td_40p", "rec_td_50p", "pass_td_40p", "pass_td_50p",
+  "rec_0_4", "rec_5_9", "rec_10_19", "rec_20_29", "rec_30_39", "pass_int_td"];
 
 export function createCollector() {
   let idx = null, c = null, parser = null, through = 0, dstThrough = 0;
   const rows = new Map(), teams = new Map(), dst = new Map(), drives = new Map(), big = new Map();
+  const fumbles = []; // kept for diagnosing defense fumble recovery scoring
 
   const slot = (id, w, tm) => {
     const k = `${id}|${w}`;
@@ -53,7 +55,7 @@ export function createCollector() {
     const k = `${tm}|${w}`;
     let t = dst.get(k);
     if (!t) {
-      t = { tm, w, sack: 0, int: 0, fum_rec: 0, ff: 0, def_td: 0, st_td: 0, safe: 0, blk_kick: 0, def_3_and_out: 0, def_4_and_stop: 0, pts_allow: 0, yds_allow: 0 };
+      t = { tm, w, sack: 0, int: 0, fum_rec: 0, def_st_fum_rec: 0, fum_rec_td: 0, ff: 0, def_td: 0, st_td: 0, def_pr_td: 0, def_kr_td: 0, def_2pt: 0, def_forced_punts: 0, safe: 0, blk_kick: 0, def_3_and_out: 0, def_4_and_stop: 0, pts_allow: 0, yds_allow: 0 };
       dst.set(k, t);
     }
     return t;
@@ -75,14 +77,29 @@ export function createCollector() {
     const scrimmage = play === "pass" || play === "run";
     if (flag(row, c.sack)) t.sack++;
     if (flag(row, c.int)) t.int++;
-    if (flag(row, c.fl)) t.fum_rec++;
+    // Fumble recoveries go to the team that recovered the ball: the defense on scrimmage plays, either team on kicks.
+    const recTeam = val(row, c.fr1), fumbler = val(row, c.fb1);
+    if (c.fr1 >= 0 && c.fb1 >= 0) {
+      if (recTeam && fumbler && recTeam !== fumbler && play !== "no_play") {
+        if (scrimmage) { if (recTeam === def) t.fum_rec++; }
+        else if (play === "punt" || play === "kickoff" || play === "field_goal" || play === "extra_point") dstSlot(recTeam, w).def_st_fum_rec++;
+      }
+    } else if (flag(row, c.fl)) t.fum_rec++;
     if (flag(row, c.ff)) t.ff++;
+    if ((recTeam || flag(row, c.fl)) && fumbles.length < 3000) {
+      fumbles.push({ w, off, def, play, fumbler, rec: recTeam, lost: flag(row, c.fl) ? 1 : 0, desc: val(row, c.desc).replace(/\s+/g, " ").slice(0, 170) });
+    }
+    if (play === "punt") t.def_forced_punts++;
+    if (flag(row, c.def2)) t.def_2pt++;
     if (flag(row, c.safety)) t.safe++;
     if (flag(row, c.punt_blocked) || val(row, c.fgres) === "blocked" || val(row, c.xpres) === "blocked") t.blk_kick++;
     if (scrimmage && flag(row, c.f4)) t.def_4_and_stop++;
     const tdTeam = val(row, c.tdteam);
     if (flag(row, c.td) && tdTeam) {
-      if (tdTeam === def) { if (scrimmage) t.def_td++; else t.st_td++; }
+      if (tdTeam === def) {
+        if (scrimmage) { t.def_td++; if (flag(row, c.fl) || (recTeam && recTeam === def)) t.fum_rec_td++; }
+        else { t.st_td++; if (play === "punt") t.def_pr_td++; else if (play === "kickoff") t.def_kr_td++; }
+      }
       else if (tdTeam === off && scrimmage) t.pts_allow += 6;
     }
     if (val(row, c.xpres) === "good") t.pts_allow += 1;
@@ -109,17 +126,26 @@ export function createCollector() {
   function bigPlay(row, w) {
     const play = val(row, c.play);
     if ((play !== "pass" && play !== "run") || flag(row, c.two)) return;
-    const y = Number(val(row, c.yds));
-    if (!(y >= 40)) return;
+    const raw = val(row, c.yds);
+    const y = Number(raw);
+    if (raw === "" || !Number.isFinite(y)) return;
     const td = flag(row, c.td) && val(row, c.tdteam) === row[c.tm];
     const add = (b, prefix) => { if (td) { b[`${prefix}_td_40p`]++; if (y >= 50) b[`${prefix}_td_50p`]++; } };
     if (play === "pass" && flag(row, c.complete)) {
       const rid = row[c.recv], qid = row[c.passer];
-      if (rid) { const b = bigSlot(rid, w); b.rec_40p++; add(b, "rec"); }
-      if (qid) { const b = bigSlot(qid, w); b.pass_cmp_40p++; add(b, "pass"); }
-    } else if (play === "run") {
+      const bucket = y < 0 ? null : y <= 4 ? "rec_0_4" : y <= 9 ? "rec_5_9" : y <= 19 ? "rec_10_19" : y <= 29 ? "rec_20_29" : y <= 39 ? "rec_30_39" : null;
+      if (rid && (bucket || y >= 40)) {
+        const b = bigSlot(rid, w);
+        if (bucket) b[bucket]++;
+        if (y >= 40) { b.rec_40p++; add(b, "rec"); }
+      }
+      if (qid && y >= 40) { const b = bigSlot(qid, w); b.pass_cmp_40p++; add(b, "pass"); }
+    } else if (play === "run" && y >= 40) {
       const rid = row[c.rusher];
       if (rid) { const b = bigSlot(rid, w); b.rush_40p++; add(b, "rush"); }
+    } else if (play === "pass" && flag(row, c.int) && flag(row, c.td) && val(row, c.tdteam) === row[c.def]) {
+      const qid = row[c.passer];
+      if (qid) bigSlot(qid, w).pass_int_td++;
     }
   }
 
@@ -158,6 +184,7 @@ export function createCollector() {
             def: ix("defteam"), int: ix("interception"), fl: ix("fumble_lost"), ff: ix("fumble_forced"), safety: ix("safety"), td: ix("touchdown"),
             tdteam: ix("td_team"), play: ix("play_type"), punt_blocked: ix("punt_blocked"), fgres: ix("field_goal_result"),
             xpres: ix("extra_point_result"), twores: ix("two_point_conv_result"), yds: ix("yards_gained"),
+            fr1: ix("fumble_recovery_1_team"), fb1: ix("fumbled_1_team"), def2: ix("defensive_two_point_conv"), desc: ix("desc"),
             game: ix("game_id"), fdrive: ix("fixed_drive"), fdres: ix("fixed_drive_result"), f4: ix("fourth_down_failed"), complete: ix("complete_pass") };
       parser?.setMask(new Set([...REQUIRED, ...OPTIONAL].filter((k) => k in idx).map((k) => idx[k])));
       return;
@@ -201,7 +228,9 @@ export function createCollector() {
       }
       for (const p of Object.values(plays)) p.weeks.sort((a, b) => a.w - b.w);
 
-      return { players, teams: Object.fromEntries(teams), through, defense, dstThrough, plays };
+      const mapTeam = (t) => SLEEPER_TEAM[t] ?? t;
+      const fumbleEvents = fumbles.map((f) => ({ ...f, off: mapTeam(f.off), def: mapTeam(f.def), fumbler: mapTeam(f.fumbler), rec: mapTeam(f.rec) }));
+      return { players, teams: Object.fromEntries(teams), through, defense, dstThrough, plays, fumbles: fumbleEvents };
     },
   };
 }

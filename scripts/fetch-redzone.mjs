@@ -44,11 +44,11 @@ try {
   for await (const chunk of stream) parser.write(decoder.write(chunk));
   parser.write(decoder.end());
   parser.end();
-  const { players, teams, through, defense: dstLines, dstThrough, plays: bigPlays } = collector.result();
+  const { players, teams, through, defense: dstLines, dstThrough, plays: bigPlays, fumbles } = collector.result();
   const missingDef = collector.missingDefenseColumns();
   if (missingDef.length) console.warn(`Missing play-by-play columns (defense lines will be incomplete): ${missingDef.join(", ")}`);
   for (const [abbr, weeks] of Object.entries(dstLines)) defense.players[`DEF-${abbr}`] = { name: `${abbr} defense`, pos: "DEF", team: abbr, weeks };
-  Object.assign(defense, { through: dstThrough, source: url });
+  Object.assign(defense, { through: dstThrough, source: url, fumbles });
   Object.assign(plays, { players: bigPlays, through: dstThrough, source: url });
   console.log(`Wrote defense lines for ${Object.keys(defense.players).length} teams through week ${dstThrough}`);
   if (!through) throw new Error(`No red zone plays found for ${season}`);
