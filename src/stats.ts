@@ -3,7 +3,8 @@ import { findIn } from "./metrics";
 
 export type Stat = Record<string, number>;
 export type StatEntry = { name?: string; pos: string; team: string; weeks: { w: number; s: Stat }[] };
-export type StatsData = { generated?: string; season?: number; through?: number; error?: string; players: Record<string, StatEntry> };
+export type Fumble = { w: number; off: string; def: string; play: string; fumbler: string; rec: string; lost: number; desc: string };
+export type StatsData = { generated?: string; season?: number; through?: number; error?: string; players: Record<string, StatEntry>; fumbles?: Fumble[] };
 export type Scoring = Record<string, number>;
 
 async function json<T>(url: string): Promise<T> {
@@ -21,7 +22,7 @@ export function loadStats(): Promise<StatsData> {
       json<StatsData>("./data/defense.json").catch(() => null),
       json<StatsData>("./data/plays.json").catch(() => null),
     ]).then(([st, def, plays]) => {
-      if (def && !def.error) Object.assign(st.players, def.players);
+      if (def && !def.error) { Object.assign(st.players, def.players); st.fumbles = def.fumbles; }
       // Big-play counts (40+ yard plays and long touchdowns) are added onto the matching weekly stat lines.
       if (plays && !plays.error) {
         for (const [id, pl] of Object.entries(plays.players)) {
@@ -48,9 +49,10 @@ const DIRECT = new Set([
   "fum", "fum_lost", "st_td", "fgm", "fgmiss", "fgm_yds", "xpm", "xpmiss",
   "fgm_0_19", "fgm_20_29", "fgm_30_39", "fgm_40_49", "fgm_50_59", "fgm_50p", "fgm_60p",
   "fgmiss_0_19", "fgmiss_20_29", "fgmiss_30_39", "fgmiss_40_49", "fgmiss_50_59", "fgmiss_50p", "fgmiss_60p",
+  "rec_0_4", "rec_5_9", "rec_10_19", "rec_20_29", "rec_30_39", "pass_int_td",
   "rush_40p", "rec_40p", "pass_cmp_40p", "rush_td_40p", "rush_td_50p", "rec_td_40p", "rec_td_50p", "pass_td_40p", "pass_td_50p",
   // team defense
-  "sack", "int", "ff", "fum_rec", "def_st_fum_rec", "def_td", "def_st_td", "safe", "blk_kick", "def_3_and_out", "def_4_and_stop",
+  "sack", "int", "ff", "fum_rec", "def_st_fum_rec", "fum_rec_td", "def_td", "def_st_td", "def_pr_td", "def_kr_td", "def_2pt", "def_forced_punts", "safe", "blk_kick", "def_3_and_out", "def_4_and_stop",
 ]);
 const BONUS = new Set([
   "bonus_pass_yd_300", "bonus_pass_yd_400", "bonus_rush_yd_100", "bonus_rush_yd_200", "bonus_rec_yd_100", "bonus_rec_yd_200",
@@ -80,7 +82,7 @@ function bonus(k: string, w: number, s: Stat, pos: string): number {
     case "bonus_rec_rb": return pos === "RB" ? w * v("rec") : 0;
     case "bonus_rec_wr": return pos === "WR" ? w * v("rec") : 0;
     case "bonus_fd_qb": case "bonus_fd_rb": case "bonus_fd_wr": case "bonus_fd_te":
-      return k.endsWith(`_${pos.toLowerCase()}`) ? w * (v("pass_fd") + v("rush_fd") + v("rec_fd")) : 0;
+      return k.endsWith(`_${pos.toLowerCase()}`) ? w * (statValue("pass_fd", s) + statValue("rush_fd", s) + statValue("rec_fd", s)) : 0;
     default: return 0;
   }
 }
@@ -134,7 +136,7 @@ export const calcPoints = (s: Stat, pos: string, sc: Scoring): number =>
 // Find a Sleeper player's stat lines: team defenses by team ID, everyone else by NFL ID or name.
 export function entryFor(st: StatsData, id: string, p: Player | undefined): StatEntry | undefined {
   if (p?.pos === "DEF") return st.players[`DEF-${id}`];
-  return p ? findIn(st.players, p.gsis, p.name, p.pos, p.team)?.[1] : undefined;
+  return p ? findIn(st.players, p.gsis, p.name, p.pos, p.team, p.fpos)?.[1] : undefined;
 }
 
 // Points for weeks 1..n in this league's scoring. Undefined means no game that week (bye or inactive).

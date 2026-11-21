@@ -79,13 +79,26 @@ export function sameName(a: string, b: string) {
   if (ta[0].length > 1 && tb[0].length > 1) return false;
   return ta.length > 1 && tb.length > 1 && ta[0][0] === tb[0][0] && ta[ta.length - 1] === tb[tb.length - 1];
 }
+const firstName = (s: string) => norm(s).split(" ")[0];
+const lastName = (s: string) => norm(s).split(" ").slice(-1)[0];
+const similarFirst = (a: string, b: string) => {
+  const x = firstName(a), y = firstName(b);
+  return x.length >= 3 && y.length >= 3 && (x.startsWith(y) || y.startsWith(x));
+};
+
+// fpos lets a player listed as a defensive back in Sleeper still match his offensive stats (a two-way player).
 export function findIn<T extends { name?: string; pos: string; team: string }>(
-  players: Record<string, T>, gsis: string | null | undefined, name: string, pos: string, team: string,
+  players: Record<string, T>, gsis: string | null | undefined, name: string, pos: string, team: string, fpos?: string[] | null,
 ): [string, T] | undefined {
   if (gsis && players[gsis]) return [gsis, players[gsis]];
-  const g = groupOf(pos);
-  const hits = Object.entries(players).filter(([, p]) => p.name && groupOf(p.pos) === g && (g !== null || p.pos === pos) && sameName(p.name, name));
-  return hits.find(([, p]) => p.team === team) ?? (hits.length === 1 ? hits[0] : undefined);
+  const groups = new Set([pos, ...(fpos ?? [])].map(groupOf));
+  const sameGroup = (p: T) => groups.has(groupOf(p.pos)) && (groupOf(p.pos) !== null || p.pos === pos);
+  const hits = Object.entries(players).filter(([, p]) => p.name && sameGroup(p) && sameName(p.name, name));
+  const exact = hits.find(([, p]) => p.team === team) ?? (hits.length === 1 ? hits[0] : undefined);
+  if (exact || !team) return exact;
+  // Nicknames like Matt and Matthew: same last name, same team, first names that start alike, and only one candidate.
+  const near = Object.entries(players).filter(([, p]) => p.name && sameGroup(p) && p.team === team && lastName(p.name) === lastName(name) && similarFirst(p.name, name));
+  return near.length === 1 ? near[0] : undefined;
 }
 export function findEntry(m: Metrics, gsis: string | null | undefined, name: string, pos: string, team: string) {
   return findIn(m.players, gsis, name, pos, team);

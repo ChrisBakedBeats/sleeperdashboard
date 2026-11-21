@@ -10,7 +10,7 @@ const tally = (items: string[]) => {
   return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(", ") || "none";
 };
 
-type Row = { name: string; pos: string; w: number; pts: number; calc: number; diff: number; line: Stat; parts: [string, number][]; match: string };
+type Row = { team: string; name: string; pos: string; w: number; pts: number; calc: number; diff: number; line: Stat; parts: [string, number][]; match: string };
 
 // Which stats move with the difference? A stat whose value tracks the gap points at the rule that is off.
 // diff is calculated minus Sleeper, so a negative slope means Sleeper pays more per unit than the dashboard.
@@ -52,7 +52,7 @@ export function buildReport(league: League, b: LeagueBundle, st: StatsData, play
         const match = e ? `${e.name ?? "?"} (${e.team})` : "no stats entry";
         if (!e || !wk) { if (Math.abs(pts) >= 0.005) miss.push({ name, pos, w: i + 1, pts, match }); return; }
         const calc = calcPoints(wk.s, e.pos, sc);
-        all.push({ name, pos, w: i + 1, pts, calc, diff: calc - pts, line: wk.s, parts: contributions(wk.s, e.pos, sc), match });
+        all.push({ team: e.team, name, pos, w: i + 1, pts, calc, diff: calc - pts, line: wk.s, parts: contributions(wk.s, e.pos, sc), match });
       }),
     ),
   );
@@ -85,12 +85,16 @@ export function buildReport(league: League, b: LeagueBundle, st: StatsData, play
     if (d.length) lines.push(`${pos}:`, ...d);
   });
 
-  lines.push("", "LARGEST DIFFERENCES PER POSITION (up to 8 each):");
+  lines.push("", "LARGEST DIFFERENCES PER POSITION (up to 8 each, 14 for defenses):");
   groups.forEach(({ pos, rows }) => {
-    const bad = rows.filter((r) => Math.abs(r.diff) >= 0.05).sort((a, c) => Math.abs(c.diff) - Math.abs(a.diff)).slice(0, 8);
+    const bad = rows.filter((r) => Math.abs(r.diff) >= 0.05).sort((a, c) => Math.abs(c.diff) - Math.abs(a.diff)).slice(0, pos === "DEF" ? 14 : 8);
     bad.forEach((o) => {
       lines.push(`${o.name} (${pos}) week ${o.w}: Sleeper ${f2(o.pts)}, calculated ${f2(o.calc)}, diff ${signed(o.diff)}`);
       lines.push(`  matched stats: ${o.match}`);
+      if (pos === "DEF") {
+        (st.fumbles ?? []).filter((f) => f.w === o.w && (f.off === o.team || f.def === o.team)).slice(0, 4).forEach((f) =>
+          lines.push(`  fumble: ${f.play}, offense ${f.off} vs defense ${f.def}, fumbled by ${f.fumbler || "?"}, recovered by ${f.rec || "?"}, lost ${f.lost}: ${f.desc}`));
+      }
       lines.push(`  stats: ${JSON.stringify(o.line)}`);
       lines.push(`  points: ${o.parts.map(([k, v]) => `${k} ${f2(v)}`).join(", ")}`);
     });
