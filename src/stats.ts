@@ -78,18 +78,23 @@ function inBucket(k: string, prefix: string, v: number): boolean {
   return v >= lo && v <= hi;
 }
 
-export function calcPoints(s: Stat, pos: string, sc: Scoring): number {
+// Points from each scoring rule, so a total can be traced back to individual rules.
+export function contributions(s: Stat, pos: string, sc: Scoring): [string, number][] {
   const p = pos === "FB" ? "RB" : pos;
-  let pts = 0;
+  const out: [string, number][] = [];
+  const add = (k: string, v: number) => { if (v) out.push([k, v]); };
   for (const [k, w] of Object.entries(sc)) {
     if (!w) continue;
-    if (DIRECT.has(k)) pts += w * (s[k] ?? 0);
-    else if (BONUS.has(k)) pts += bonus(k, w, s, p);
-    else if (k.startsWith("pts_allow_") && s.pts_allow !== undefined) { if (inBucket(k, "pts_allow_", s.pts_allow)) pts += w; }
-    else if (k.startsWith("yds_allow_") && s.yds_allow !== undefined) { if (inBucket(k, "yds_allow_", s.yds_allow)) pts += w; }
+    if (DIRECT.has(k)) add(k, w * (s[k] ?? 0));
+    else if (BONUS.has(k)) add(k, bonus(k, w, s, p));
+    else if (k.startsWith("pts_allow_") && s.pts_allow !== undefined) add(k, inBucket(k, "pts_allow_", s.pts_allow) ? w : 0);
+    else if (k.startsWith("yds_allow_") && s.yds_allow !== undefined) add(k, inBucket(k, "yds_allow_", s.yds_allow) ? w : 0);
   }
-  return pts;
+  return out;
 }
+
+export const calcPoints = (s: Stat, pos: string, sc: Scoring): number =>
+  contributions(s, pos, sc).reduce((a, [, v]) => a + v, 0);
 
 // Find a Sleeper player's stat lines: team defenses by team ID, everyone else by NFL ID or name.
 export function entryFor(st: StatsData, id: string, p: Player | undefined): StatEntry | undefined {

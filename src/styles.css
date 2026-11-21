@@ -85,3 +85,5 @@ button:disabled, input:disabled { opacity: 0.6; cursor: not-allowed; }
 .theme button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
 .splash { position: relative; }
 .splash-top { position: absolute; top: 16px; right: 16px; }
+
+.report { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; line-height: 1.45; margin: 12px 0 0; max-height: 70vh; overflow: auto; }

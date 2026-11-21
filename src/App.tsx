@@ -6,6 +6,7 @@ import PlayerPage from "./PlayerPage";
 import Splash from "./Splash";
 import ThemeToggle from "./ThemeToggle";
 import Standings from "./Standings";
+import CheckPage from "./CheckPage";
 import { loadStats, mergeCalc, type StatsData } from "./stats";
 
 const SAVED_USER = "sleeper-username";
@@ -32,9 +33,10 @@ export default function App() {
   const [error, setError] = useState<string>();
   const [view, setView] = useState<"waivers" | "league" | "standings">("waivers");
   const [playerId, setPlayerId] = useState<string | null>(parseRoute);
+  const [showCheck, setShowCheck] = useState(window.location.hash === "#/check");
 
   useEffect(() => {
-    const onHash = () => { setPlayerId(parseRoute()); window.scrollTo(0, 0); };
+    const onHash = () => { setPlayerId(parseRoute()); setShowCheck(window.location.hash === "#/check"); window.scrollTo(0, 0); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -96,7 +98,9 @@ export default function App() {
 
       {playerId && state && userId && <PlayerPage id={playerId} players={players} leagues={leagues} leagueId={leagueId} onLeague={selectLeague} week={state.week} userId={userId} trending={trending} />}
 
-      <div hidden={playerId != null}>
+      {showCheck && state && userId && <CheckPage leagues={leagues} leagueId={leagueId} onLeague={selectLeague} week={state.week} players={players} />}
+
+      <div hidden={playerId != null || showCheck}>
       <nav aria-label="Leagues">
         {leagues.map((l) => (
           <button key={l.league_id} aria-pressed={l.league_id === leagueId} onClick={() => selectLeague(l.league_id)}>{l.name}</button>
