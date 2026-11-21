@@ -32,6 +32,7 @@ async function open() {
 
 const out = { generated: new Date().toISOString(), season, players: {}, teams: {} };
 const defense = { generated: out.generated, season, players: {} };
+const plays = { generated: out.generated, season, players: {} };
 
 try {
   const { url, stream } = await open();
@@ -43,11 +44,12 @@ try {
   for await (const chunk of stream) parser.write(decoder.write(chunk));
   parser.write(decoder.end());
   parser.end();
-  const { players, teams, through, defense: dstLines, dstThrough } = collector.result();
+  const { players, teams, through, defense: dstLines, dstThrough, plays: bigPlays } = collector.result();
   const missingDef = collector.missingDefenseColumns();
   if (missingDef.length) console.warn(`Missing play-by-play columns (defense lines will be incomplete): ${missingDef.join(", ")}`);
   for (const [abbr, weeks] of Object.entries(dstLines)) defense.players[`DEF-${abbr}`] = { name: `${abbr} defense`, pos: "DEF", team: abbr, weeks };
   Object.assign(defense, { through: dstThrough, source: url });
+  Object.assign(plays, { players: bigPlays, through: dstThrough, source: url });
   console.log(`Wrote defense lines for ${Object.keys(defense.players).length} teams through week ${dstThrough}`);
   if (!through) throw new Error(`No red zone plays found for ${season}`);
   Object.assign(out, { players, teams, through, source: url });
@@ -56,8 +58,10 @@ try {
   console.warn(`Red zone data not built: ${e.message}`);
   out.error = e.message;
   defense.error = e.message;
+  plays.error = e.message;
 }
 
 await mkdir("public/data", { recursive: true });
 await writeFile("public/data/redzone.json", JSON.stringify(out));
 await writeFile("public/data/defense.json", JSON.stringify(defense));
+await writeFile("public/data/plays.json", JSON.stringify(plays));
