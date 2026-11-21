@@ -5,7 +5,7 @@ import Opportunity from "./Opportunity";
 import DefenseStats from "./DefenseStats";
 import { entryFor, loadStats, unsupportedKeys, validate, weeklyPoints } from "./stats";
 
-type Props = { id: string; players: S.PlayerMap; leagues: S.League[]; week: number; userId: string; trending: S.Trend[] };
+type Props = { id: string; players: S.PlayerMap; leagues: S.League[]; leagueId?: string; onLeague: (id: string) => void; week: number; userId: string; trending: S.Trend[] };
 type Row = {
   league: S.League; owner: string | null; mine: boolean; pts: (number | undefined)[];
   calc: boolean; check?: { match: number; total: number; dMatch: number; dTotal: number }; unsupported: string[];
@@ -15,9 +15,8 @@ const f = (n?: number) => (n == null ? "-" : n.toFixed(1));
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 const height = (h?: string | null) => (h && /^\d+$/.test(h) ? `${Math.floor(+h / 12)}'${+h % 12}"` : h ?? undefined);
 
-export default function PlayerPage({ id, players, leagues, week, userId, trending }: Props) {
+export default function PlayerPage({ id, players, leagues, leagueId, onLeague, week, userId, trending }: Props) {
   const p = players[id];
-  const [leagueId, setLeagueId] = useState(leagues[0]?.league_id);
   const league = leagues.find((l) => l.league_id === leagueId) ?? leagues[0];
   const [row, setRow] = useState<Row | "error">();
 
@@ -93,7 +92,7 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
       <h3>League stats</h3>
       <nav aria-label="Leagues">
         {leagues.map((l) => (
-          <button key={l.league_id} aria-pressed={l.league_id === league?.league_id} onClick={() => setLeagueId(l.league_id)}>{l.name}</button>
+          <button key={l.league_id} aria-pressed={l.league_id === league?.league_id} onClick={() => onLeague(l.league_id)}>{l.name}</button>
         ))}
       </nav>
       {!league ? <p className="note">No leagues found for this season.</p> : row === undefined ? <p className="note">Loading {league.name}…</p> : row === "error" ? <p className="error" role="alert">Couldn't load {league.name}. Try again in a moment.</p> : (() => {

@@ -11,6 +11,9 @@ import { loadStats, mergeCalc, type StatsData } from "./stats";
 const SAVED_USER = "sleeper-username";
 const savedUser = () => { try { return localStorage.getItem(SAVED_USER); } catch { return null; } };
 
+const SAVED_LEAGUE = "sleeper-league";
+const savedLeague = () => { try { return localStorage.getItem(SAVED_LEAGUE); } catch { return null; } };
+
 const parseRoute = () => {
   const m = window.location.hash.match(/^#\/player\/(.+)$/);
   return m ? decodeURIComponent(m[1]) : null;
@@ -47,7 +50,7 @@ export default function App() {
         if (!user) throw new Error(`No Sleeper user named "${username}". Check the spelling and try again.`);
         const ls = await S.getLeagues(user.user_id, st.season);
         if (!live) return;
-        setState(st); setUserId(user.user_id); setLeagues(ls); setLeagueId(ls[0]?.league_id);
+        setState(st); setUserId(user.user_id); setLeagues(ls); setLeagueId(ls.find((l) => l.league_id === savedLeague())?.league_id ?? ls[0]?.league_id);
         try { localStorage.setItem(SAVED_USER, username); } catch { /* ignore */ }
         S.getPlayers().then(setPlayers).catch(() => {});
         S.getTrending().then(setTrending).catch(() => {});
@@ -61,6 +64,11 @@ export default function App() {
     })();
     return () => { live = false; };
   }, [username]);
+
+  const selectLeague = (id: string) => {
+    setLeagueId(id);
+    try { localStorage.setItem(SAVED_LEAGUE, id); } catch { /* ignore */ }
+  };
 
   const signOut = () => {
     try { localStorage.removeItem(SAVED_USER); } catch { /* ignore */ }
@@ -87,12 +95,12 @@ export default function App() {
       {error && <p className="error" role="alert">{error}</p>}
       {state && <p className="note">{state.season} season, week {state.week}. {leagues.length} league{leagues.length === 1 ? "" : "s"} found.</p>}
 
-      {playerId && state && userId && <PlayerPage id={playerId} players={players} leagues={leagues} week={state.week} userId={userId} trending={trending} />}
+      {playerId && state && userId && <PlayerPage id={playerId} players={players} leagues={leagues} leagueId={leagueId} onLeague={selectLeague} week={state.week} userId={userId} trending={trending} />}
 
       <div hidden={playerId != null}>
       <nav aria-label="Leagues">
         {leagues.map((l) => (
-          <button key={l.league_id} aria-pressed={l.league_id === leagueId} onClick={() => setLeagueId(l.league_id)}>{l.name}</button>
+          <button key={l.league_id} aria-pressed={l.league_id === leagueId} onClick={() => selectLeague(l.league_id)}>{l.name}</button>
         ))}
       </nav>
 
