@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import * as S from "./sleeper";
 import Waivers from "./Waivers";
 import RosterTable from "./RosterTable";
-import PlayerLink from "./PlayerLink";
 import PlayerPage from "./PlayerPage";
 import Splash from "./Splash";
 import ThemeToggle from "./ThemeToggle";
@@ -78,7 +77,6 @@ export default function App() {
   };
 
   const league = leagues.find((l) => l.league_id === leagueId);
-  const who = (id: string) => players[id]?.name ?? id;
 
   if (!userId) return <Splash initial={lastTried} loading={loading} error={error} onSubmit={setUsername} />;
 
@@ -115,16 +113,6 @@ export default function App() {
         {league && state && userId && view === "waivers" && <Waivers key={league.league_id} league={league} userId={userId} week={state.week} players={players} trending={trending} />}
         {league && state && userId && view === "league" && <LeagueView key={league.league_id} league={league} userId={userId} week={state.week} players={players} />}
         {league && userId && view === "standings" && <Standings key={league.league_id} league={league} userId={userId} />}
-        <section className="panel" hidden={view !== "league"}>
-          <h2>Most added in the last 24 hours</h2>
-          {trending.length === 0 ? <p className="note">Loading trending players…</p> : (
-            <ol className="plain">
-              {trending.slice(0, 15).map((t) => (
-                <li key={t.player_id}><span><PlayerLink id={t.player_id} name={who(t.player_id)} /> <small>{players[t.player_id]?.pos} {players[t.player_id]?.team}</small></span><b>{t.count.toLocaleString()}</b></li>
-              ))}
-            </ol>
-          )}
-        </section>
       </div>
       </div>
     </main>
