@@ -96,7 +96,7 @@ export default function PlayerPage({ id, players, leagues, leagueId, onLeague, w
         ))}
       </nav>
       {!league ? <p className="note">No leagues found for this season.</p> : row === undefined ? <p className="note">Loading {league.name}…</p> : row === "error" ? <p className="error" role="alert">Couldn't load {league.name}. Try again in a moment.</p> : (() => {
-        const { owner, mine, pts, calc, check, unsupported } = row;
+        const { owner, mine, pts, calc } = row;
         const played = pts.slice(0, -1).filter((x): x is number => x != null && (calc || x !== 0));
         const l3 = played.slice(-3);
         return (
@@ -120,8 +120,6 @@ export default function PlayerPage({ id, players, leagues, leagueId, onLeague, w
             ) : (
               <p className="note">Calculated stats weren't available for this player, so these points come from league matchups and only cover weeks he was on a roster.</p>
             )}
-            {check && (p.pos === "DEF" ? check.dTotal : check.total) > 0 && <p className="note">Check: the calculated points match Sleeper's own scores for {p.pos === "DEF" ? check.dMatch : check.match} of {p.pos === "DEF" ? check.dTotal : check.total} rostered {p.pos === "DEF" ? "defense" : "player"}-weeks in this league (completed weeks).</p>}
-            {unsupported.length > 0 && <p className="note">Scoring rules not modeled: {unsupported.join(", ")}.</p>}
           </section>
           <h3>Per week</h3>
           <section className="panel">
