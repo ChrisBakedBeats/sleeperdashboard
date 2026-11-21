@@ -6,12 +6,22 @@ export type StatEntry = { name?: string; pos: string; team: string; weeks: { w: 
 export type StatsData = { generated?: string; season?: number; through?: number; error?: string; players: Record<string, StatEntry> };
 export type Scoring = Record<string, number>;
 
+async function json<T>(url: string): Promise<T> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// Player stat lines plus team defense lines (optional) merged into one lookup.
 let cache: Promise<StatsData> | undefined;
 export function loadStats(): Promise<StatsData> {
   if (!cache) {
-    cache = fetch("./data/stats.json").then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+    cache = Promise.all([
+      json<StatsData>("./data/stats.json"),
+      json<StatsData>("./data/defense.json").catch(() => null),
+    ]).then(([st, def]) => {
+      if (def && !def.error) Object.assign(st.players, def.players);
+      return st;
     });
     cache.catch(() => { cache = undefined; });
   }
@@ -25,16 +35,17 @@ const DIRECT = new Set([
   "fum", "fum_lost", "st_td", "fgm", "fgmiss", "fgm_yds", "xpm", "xpmiss",
   "fgm_0_19", "fgm_20_29", "fgm_30_39", "fgm_40_49", "fgm_50_59", "fgm_50p", "fgm_60p",
   "fgmiss_0_19", "fgmiss_20_29", "fgmiss_30_39", "fgmiss_40_49", "fgmiss_50_59", "fgmiss_50p", "fgmiss_60p",
+  // team defense
+  "sack", "int", "ff", "fum_rec", "def_td", "def_st_td", "safe", "blk_kick",
 ]);
 const BONUS = new Set([
   "bonus_pass_yd_300", "bonus_pass_yd_400", "bonus_rush_yd_100", "bonus_rush_yd_200", "bonus_rec_yd_100", "bonus_rec_yd_200",
   "bonus_rec_te", "bonus_rec_rb", "bonus_rec_wr", "bonus_fd_qb", "bonus_fd_rb", "bonus_fd_wr", "bonus_fd_te",
 ]);
-// Defense and team scoring don't apply to the players covered here.
-const IGNORE = ["def", "pts_allow", "yds_allow", "sack", "int", "ff", "fum_rec", "safe", "blk", "tkl", "qb_hit", "pass_def", "st_ff", "st_fum", "st_tkl", "idp", "tfl"];
+const ALLOW = /^(pts|yds)_allow_/;
 
 export const unsupportedKeys = (sc: Scoring) =>
-  Object.keys(sc).filter((k) => sc[k] && !DIRECT.has(k) && !BONUS.has(k) && !IGNORE.some((p) => k.startsWith(p)));
+  Object.keys(sc).filter((k) => sc[k] && !DIRECT.has(k) && !BONUS.has(k) && !ALLOW.test(k));
 
 function bonus(k: string, w: number, s: Stat, pos: string): number {
   const v = (x: string) => s[x] ?? 0;
@@ -55,6 +66,18 @@ function bonus(k: string, w: number, s: Stat, pos: string): number {
   }
 }
 
+// Points-allowed and yards-allowed buckets, like pts_allow_7_13, pts_allow_35p, yds_allow_300_349.
+function inBucket(k: string, prefix: string, v: number): boolean {
+  const m = /^(\d+)(?:_(\d+)|(p))?$/.exec(k.slice(prefix.length));
+  if (!m) return false;
+  const lo = +m[1];
+  if (m[3]) return v >= lo;
+  if (m[2] === undefined) return v === lo;
+  let hi = +m[2];
+  if (prefix === "yds_allow_" && hi - lo === 100) hi -= 1; // a "0_100" style bucket means 0 to 99
+  return v >= lo && v <= hi;
+}
+
 export function calcPoints(s: Stat, pos: string, sc: Scoring): number {
   const p = pos === "FB" ? "RB" : pos;
   let pts = 0;
@@ -62,8 +85,16 @@ export function calcPoints(s: Stat, pos: string, sc: Scoring): number {
     if (!w) continue;
     if (DIRECT.has(k)) pts += w * (s[k] ?? 0);
     else if (BONUS.has(k)) pts += bonus(k, w, s, p);
+    else if (k.startsWith("pts_allow_") && s.pts_allow !== undefined) { if (inBucket(k, "pts_allow_", s.pts_allow)) pts += w; }
+    else if (k.startsWith("yds_allow_") && s.yds_allow !== undefined) { if (inBucket(k, "yds_allow_", s.yds_allow)) pts += w; }
   }
   return pts;
+}
+
+// Find a Sleeper player's stat lines: team defenses by team ID, everyone else by NFL ID or name.
+export function entryFor(st: StatsData, id: string, p: Player | undefined): StatEntry | undefined {
+  if (p?.pos === "DEF") return st.players[`DEF-${id}`];
+  return p ? findIn(st.players, p.gsis, p.name, p.pos, p.team)?.[1] : undefined;
 }
 
 // Points for weeks 1..n in this league's scoring. Undefined means no game that week (bye or inactive).
@@ -75,21 +106,23 @@ export function weeklyPoints(e: StatEntry, sc: Scoring, n: number): (number | un
 }
 
 // Compare calculated points with Sleeper's own scores for rostered players in completed weeks.
+// Team defenses are counted separately so they can't hide behind the offensive players.
 export function validate(byWeek: Matchup[][], players: PlayerMap, st: StatsData, sc: Scoring) {
-  let match = 0, total = 0;
+  let match = 0, total = 0, dMatch = 0, dTotal = 0;
   byWeek.forEach((ms, i) =>
     ms.forEach((m) =>
       Object.entries(m.players_points ?? {}).forEach(([pid, pts]) => {
-        const g = players[pid]?.gsis;
-        const e = g ? st.players[g] : undefined;
+        const p = players[pid];
+        const e = p ? entryFor(st, pid, p) : undefined;
         const wk = e?.weeks.find((x) => x.w === i + 1);
-        if (!e || !wk) return;
-        total++;
-        if (Math.abs(calcPoints(wk.s, e.pos, sc) - pts) < 0.06) match++;
+        if (!p || !e || !wk) return;
+        const ok = Math.abs(calcPoints(wk.s, e.pos, sc) - pts) < 0.06;
+        if (p.pos === "DEF") { dTotal++; if (ok) dMatch++; }
+        else { total++; if (ok) match++; }
       }),
     ),
   );
-  return { match, total };
+  return { match, total, dMatch, dTotal };
 }
 
 // Replace matchup-based points with calculated points for the given Sleeper player IDs where stats exist.
@@ -98,18 +131,17 @@ export function mergeCalc(season: Record<string, (number | undefined)[]>, ids: s
   const calc = new Set<string>();
   if (!st || st.error || !sc) return { season: out, calc };
   for (const id of ids) {
-    const p = players[id];
-    const hit = p ? findIn(st.players, p.gsis, p.name, p.pos, p.team) : undefined;
-    if (hit) { out[id] = weeklyPoints(hit[1], sc, weeks); calc.add(id); }
+    const e = entryFor(st, id, players[id]);
+    if (e) { out[id] = weeklyPoints(e, sc, weeks); calc.add(id); }
   }
   return { season: out, calc };
 }
 
-export function recentForm(st: StatsData | null, p: Player | undefined, sc: Scoring | undefined, week: number) {
+export function recentForm(st: StatsData | null, id: string, p: Player | undefined, sc: Scoring | undefined, week: number) {
   if (!st || st.error || !sc || !p) return undefined;
-  const hit = findIn(st.players, p.gsis, p.name, p.pos, p.team);
-  if (!hit) return undefined;
-  const v = weeklyPoints(hit[1], sc, Math.max(week - 1, 0)).filter((x): x is number => x != null);
+  const e = entryFor(st, id, p);
+  if (!e) return undefined;
+  const v = weeklyPoints(e, sc, Math.max(week - 1, 0)).filter((x): x is number => x != null);
   if (!v.length) return undefined;
   const l3 = v.slice(-3);
   const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;

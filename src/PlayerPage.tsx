@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import * as S from "./sleeper";
 import WeekChart from "./WeekChart";
 import Opportunity from "./Opportunity";
-import { findIn } from "./metrics";
-import { loadStats, unsupportedKeys, validate, weeklyPoints } from "./stats";
+import DefenseStats from "./DefenseStats";
+import { entryFor, loadStats, unsupportedKeys, validate, weeklyPoints } from "./stats";
 
 type Props = { id: string; players: S.PlayerMap; leagues: S.League[]; week: number; userId: string; trending: S.Trend[] };
 type Row = {
   league: S.League; owner: string | null; mine: boolean; pts: (number | undefined)[];
-  calc: boolean; check?: { match: number; total: number }; unsupported: string[];
+  calc: boolean; check?: { match: number; total: number; dMatch: number; dTotal: number }; unsupported: string[];
 };
 
 const f = (n?: number) => (n == null ? "-" : n.toFixed(1));
@@ -35,8 +35,8 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
         let calc = false;
         let check: Row["check"];
         if (st && !st.error && sc) {
-          const hit = p ? findIn(st.players, p.gsis, p.name, p.pos, p.team) : undefined;
-          if (hit) { pts = weeklyPoints(hit[1], sc, b.byWeek.length); calc = true; }
+          const entry = p ? entryFor(st, id, p) : undefined;
+          if (entry) { pts = weeklyPoints(entry, sc, b.byWeek.length); calc = true; }
           check = validate(b.byWeek.slice(0, -1), players, st, sc);
         }
         const owner = r ? u?.metadata?.team_name || u?.display_name || `Team ${r.roster_id}` : null;
@@ -48,7 +48,7 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
 
   const back = <a className="back" href="#/">Back to dashboard</a>;
   if (Object.keys(players).length === 0) return <>{back}<p className="note">Loading player data…</p></>;
-  if (!p) return <>{back}<p className="error" role="alert">No player found with ID {id}.</p></>;
+  if (!p) return <>{back}<p className="error" role="alert">No player found with ID {id}. Sleeper's player list doesn't include this ID, which usually means a retired or long-inactive player.</p></>;
 
   const adds = trending.find((t) => t.player_id === id)?.count;
   const bio: [string, string | number | null | undefined][] = [
@@ -121,7 +121,7 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
             ) : (
               <p className="note">Calculated stats weren't available for this player, so these points come from league matchups and only cover weeks he was on a roster.</p>
             )}
-            {check && check.total > 0 && <p className="note">Check: the calculated points match Sleeper's own scores for {check.match} of {check.total} rostered player-weeks in this league (completed weeks).</p>}
+            {check && (p.pos === "DEF" ? check.dTotal : check.total) > 0 && <p className="note">Check: the calculated points match Sleeper's own scores for {p.pos === "DEF" ? check.dMatch : check.match} of {p.pos === "DEF" ? check.dTotal : check.total} rostered {p.pos === "DEF" ? "defense" : "player"}-weeks in this league (completed weeks).</p>}
             {unsupported.length > 0 && <p className="note">Scoring rules not modeled: {unsupported.join(", ")}.</p>}
           </section>
           <h3>Per week</h3>
@@ -133,7 +133,7 @@ export default function PlayerPage({ id, players, leagues, week, userId, trendin
         );
       })()}
 
-      <Opportunity gsis={p.gsis} name={p.name} pos={p.pos} team={p.team} />
+      {p.pos === "DEF" ? <DefenseStats id={id} /> : <Opportunity gsis={p.gsis} name={p.name} pos={p.pos} team={p.team} />}
     </>
   );
 }

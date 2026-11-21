@@ -50,7 +50,7 @@ export type Txn = {
 };
 export const getTxns = (id: string, week: number) => get<Txn[]>(`/league/${id}/transactions/${week}`);
 
-const CACHE_KEY = "sleeper-players-v3";
+const CACHE_KEY = "sleeper-players-v4";
 const CACHE_MS = 6 * 60 * 60 * 1000;
 
 // The full player file is several MB, so keep a slimmed copy in localStorage.
@@ -66,7 +66,8 @@ export async function getPlayers(): Promise<PlayerMap> {
   const raw = await get<Record<string, any>>("/players/nfl");
   const slim: PlayerMap = {};
   for (const [id, p] of Object.entries(raw)) {
-    if (!p.team && p.position !== "DEF") continue;
+    // Keep anyone who could be on a roster: players on a team, active free agents, and anyone Sleeper still ranks.
+    if (!p.team && p.position !== "DEF" && !p.active && !(p.search_rank != null && p.search_rank < 9999999)) continue;
     slim[id] = {
       name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim(),
       pos: p.position ?? "",
