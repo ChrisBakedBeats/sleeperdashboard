@@ -56,7 +56,7 @@ const DIRECT = new Set([
   "rec_0_4", "rec_5_9", "rec_10_19", "rec_20_29", "rec_30_39", "pass_int_td",
   "rush_40p", "rec_40p", "pass_cmp_40p", "rush_td_40p", "rush_td_50p", "rec_td_40p", "rec_td_50p", "pass_td_40p", "pass_td_50p",
   // team defense
-  "sack", "int", "ff", "fum_rec", "def_st_fum_rec", "fum_rec_td", "def_td", "def_st_td", "def_pr_td", "def_kr_td", "def_2pt", "def_forced_punts", "def_pass_def", "pts_allow", "tkl_loss", "safe", "blk_kick", "def_3_and_out", "def_4_and_stop",
+  "sack", "int", "ff", "fum_rec", "def_st_fum_rec", "fum_rec_td", "def_td", "def_st_td", "def_pr_td", "def_kr_td", "def_2pt", "def_forced_punts", "def_pass_def", "pts_allow", "tkl_loss", "def_st_ff", "safe", "blk_kick", "def_3_and_out", "def_4_and_stop",
 ]);
 const BONUS = new Set([
   "bonus_pass_yd_300", "bonus_pass_yd_400", "bonus_rush_yd_100", "bonus_rush_yd_200", "bonus_rec_yd_100", "bonus_rec_yd_200",
@@ -120,8 +120,14 @@ function statValue(k: string, s: Stat): number {
 }
 
 // Points from each scoring rule, so a total can be traced back to individual rules.
-export function contributions(s: Stat, pos: string, sc: Scoring): [string, number][] {
+export function contributions(raw: Stat, pos: string, sc: Scoring): [string, number][] {
   const p = pos === "FB" ? "RB" : pos;
+  // A touchdown is paid once, under the most specific rule the league scores: a fumble-recovery touchdown as fum_rec_td
+  // (not also def_td), and punt or kick return touchdowns as def_pr_td / def_kr_td (not also def_st_td).
+  const s: Stat = { ...raw };
+  if (sc.fum_rec_td) s.def_td = Math.max(0, (raw.def_td ?? 0) - (raw.fum_rec_td ?? 0));
+  const specific = (sc.def_pr_td ? raw.def_pr_td ?? 0 : 0) + (sc.def_kr_td ? raw.def_kr_td ?? 0 : 0);
+  if (specific) s.def_st_td = Math.max(0, (raw.def_st_td ?? 0) - specific);
   const out: [string, number][] = [];
   const add = (k: string, v: number) => { if (v) out.push([k, v]); };
   for (const [k, w] of Object.entries(sc)) {
