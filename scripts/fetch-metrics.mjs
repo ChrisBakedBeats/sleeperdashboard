@@ -10,7 +10,7 @@ const candidates = [
   `${base}/stats_player/stats_player_week_${season}.csv`,
   `${base}/player_stats/player_stats_${season}.csv`,
 ];
-const expected = ["carries", "targets", "receptions", "receiving_air_yards", "target_share", "air_yards_share", "wopr", "attempts", "passing_air_yards", "fantasy_points_ppr", "completions", "passing_yards", "passing_tds", "passing_interceptions", "rushing_yards", "rushing_tds", "receiving_yards", "receiving_tds", "rushing_fumbles_lost", "receiving_fumbles_lost", "sack_fumbles_lost", "fg_made", "fg_blocked", "fg_blocked_list", "pat_made"];
+const expected = ["carries", "targets", "receptions", "receiving_air_yards", "target_share", "air_yards_share", "wopr", "attempts", "passing_air_yards", "fantasy_points_ppr", "completions", "passing_yards", "passing_tds", "passing_interceptions", "rushing_yards", "rushing_tds", "receiving_yards", "receiving_tds", "rushing_fumbles_lost", "receiving_fumbles_lost", "sack_fumbles_lost", "fg_made", "fg_blocked", "fg_blocked_list", "pat_made", "pat_blocked"];
 
 function parseCsv(text) {
   const rows = [];
@@ -87,7 +87,8 @@ try {
       fum_lost: n("rushing_fumbles_lost") + n("receiving_fumbles_lost") + n("sack_fumbles_lost"),
       st_td: n("special_teams_tds"),
       fgm: n("fg_made"), // nflverse lists blocked field goals apart from misses; Sleeper scores a blocked kick as a miss.
-      fgmiss: n("fg_missed") + n("fg_blocked"), fgm_yds: n("fg_made_distance"), xpm: n("pat_made"), xpmiss: n("pat_missed"),
+      fgmiss: n("fg_missed") + n("fg_blocked"), fgm_yds: n("fg_made_distance"), xpm: n("pat_made"), // Blocked extra points are separate in nflverse; Sleeper scores them as misses.
+      xpmiss: n("pat_missed") + n("pat_blocked"),
       fgm_0_19: n("fg_made_0_19"), fgm_20_29: n("fg_made_20_29"), fgm_30_39: n("fg_made_30_39"), fgm_40_49: n("fg_made_40_49"),
       fgm_50_59: n("fg_made_50_59"), fgm_60p: n("fg_made_60_"), fgm_50p: n("fg_made_50_59") + n("fg_made_60_"),
       fgmiss_0_19: n("fg_missed_0_19"), fgmiss_20_29: n("fg_missed_20_29"), fgmiss_30_39: n("fg_missed_30_39"), fgmiss_40_49: n("fg_missed_40_49"),

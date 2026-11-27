@@ -59,7 +59,7 @@ export function createCollector() {
     const k = `${tm}|${w}`;
     let t = dst.get(k);
     if (!t) {
-      t = { tm, w, sack: 0, int: 0, fum_rec: 0, def_st_fum_rec: 0, fum_rec_td: 0, ff: 0, def_td: 0, st_td: 0, def_pr_td: 0, def_kr_td: 0, def_2pt: 0, def_forced_punts: 0, def_pass_def: 0, tkl_loss: 0, safe: 0, blk_kick: 0, def_3_and_out: 0, def_4_and_stop: 0, pts_allow: 0, yds_allow: 0 };
+      t = { tm, w, sack: 0, int: 0, fum_rec: 0, def_st_fum_rec: 0, fum_rec_td: 0, ff: 0, def_td: 0, st_td: 0, def_pr_td: 0, def_kr_td: 0, def_2pt: 0, def_forced_punts: 0, def_pass_def: 0, tkl_loss: 0, def_st_ff: 0, safe: 0, blk_kick: 0, def_3_and_out: 0, def_4_and_stop: 0, pts_allow: 0, yds_allow: 0 };
       dst.set(k, t);
     }
     return t;
@@ -80,8 +80,8 @@ export function createCollector() {
     const play = val(row, c.play);
     const scrimmage = play === "pass" || play === "run";
     if (flag(row, c.sack)) t.sack++;
-    // Tackles for loss: a sack counts as one, and so does any other play with a credited tackler behind the line.
-    if (play !== "no_play" && (flag(row, c.sack) || val(row, c.tfl1) || val(row, c.tfl2))) t.tkl_loss++;
+    // Tackles for loss: a sack counts as one, and so does any other pass or run play with a credited tackler behind the line.
+    if (scrimmage && !flag(row, c.two) && (flag(row, c.sack) || val(row, c.tfl1) || val(row, c.tfl2))) t.tkl_loss++;
     if (flag(row, c.int)) t.int++;
     // Passes defended: each defender credited on the play. An interception with no separate pass defender still counts once
     // (INT_COUNTS_AS_PD; flip it if the next report shows interception games off by one point per interception).
@@ -98,7 +98,14 @@ export function createCollector() {
         else if (play === "punt" || play === "kickoff" || play === "field_goal" || play === "extra_point") dstSlot(recTeam, w).def_st_fum_rec++;
       }
     } else if (flag(row, c.fl)) t.fum_rec++;
-    if (flag(row, c.ff)) t.ff++;
+    // A forced fumble belongs to the team that did not fumble. On punts and kickoffs that is the coverage unit, which scores
+    // as a special-teams forced fumble (def_st_ff), not as a forced fumble for the receiving team the play is filed under.
+    if (flag(row, c.ff)) {
+      const forcer = fumbler && fumbler === def ? off : def;
+      if (scrimmage) dstSlot(forcer, w).ff++;
+      else if (play === "punt" || play === "kickoff") dstSlot(forcer, w).def_st_ff++;
+      else t.ff++;
+    }
     if ((recTeam || flag(row, c.fl)) && fumbles.length < 3000) {
       fumbles.push({ w, off, def, play, fumbler, rec: recTeam, lost: flag(row, c.fl) ? 1 : 0, desc: val(row, c.desc).replace(/\s+/g, " ").slice(0, 170) });
     }
@@ -109,12 +116,21 @@ export function createCollector() {
     if (scrimmage && flag(row, c.f4)) t.def_4_and_stop++;
     const tdTeam = val(row, c.tdteam);
     if (flag(row, c.td) && tdTeam) {
+      // The scoring rules pay a return touchdown once, under the most specific setting the league uses (see contributions()).
       if (tdTeam === def) {
-        // A fumble-recovery touchdown is paid once, as fum_rec_td, not also as def_td.
-        if (scrimmage) { if (flag(row, c.fl) || (recTeam && recTeam === def)) t.fum_rec_td++; else t.def_td++; }
+        if (scrimmage) { t.def_td++; if (flag(row, c.fl) || (recTeam && recTeam === def)) t.fum_rec_td++; }
         else { t.st_td++; if (play === "punt") t.def_pr_td++; else if (play === "kickoff") t.def_kr_td++; }
+        // Sleeper counts a touchdown scored by the other team's defense or special teams as points allowed.
+        dstSlot(off, w).pts_allow += 6;
       }
-      else if (tdTeam === off && scrimmage) t.pts_allow += 6;
+      else if (tdTeam === off) {
+        if (scrimmage) t.pts_allow += 6;
+        // Kickoffs are filed with the receiving team as the offense, so its return touchdown scores here.
+        else if (play === "kickoff" || play === "punt") {
+          const o = dstSlot(off, w); o.st_td++; if (play === "kickoff") o.def_kr_td++;
+          t.pts_allow += 6;
+        }
+      }
     }
     if (val(row, c.xpres) === "good") t.pts_allow += 1;
     if (val(row, c.twores) === "success") t.pts_allow += 2;
