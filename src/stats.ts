@@ -32,8 +32,8 @@ export function loadStats(): Promise<StatsData> {
             let row = e.weeks.find((x) => x.w === w.w);
             if (!row) { row = { w: w.w, s: {} }; e.weeks.push(row); }
             for (const [k, v] of Object.entries(w.s)) {
-              // Return fumbles from play-by-play add onto the weekly fumble totals instead of replacing them.
-              if (k === "st_fum" || k === "st_fum_lost") { const t = k.slice(3); row.s[t] = (row.s[t] ?? 0) + v; }
+              // Fumbles counted from play-by-play fill gaps in the weekly totals: take the larger, never add both.
+              if (k === "pbp_fum" || k === "pbp_fum_lost") { const t = k.slice(4); row.s[t] = Math.max(row.s[t] ?? 0, v); }
               else row.s[k] = v;
             }
           }
@@ -56,7 +56,7 @@ const DIRECT = new Set([
   "rec_0_4", "rec_5_9", "rec_10_19", "rec_20_29", "rec_30_39", "pass_int_td",
   "rush_40p", "rec_40p", "pass_cmp_40p", "rush_td_40p", "rush_td_50p", "rec_td_40p", "rec_td_50p", "pass_td_40p", "pass_td_50p",
   // team defense
-  "sack", "int", "ff", "fum_rec", "def_st_fum_rec", "fum_rec_td", "def_td", "def_st_td", "def_pr_td", "def_kr_td", "def_2pt", "def_forced_punts", "def_pass_def", "safe", "blk_kick", "def_3_and_out", "def_4_and_stop",
+  "sack", "int", "ff", "fum_rec", "def_st_fum_rec", "fum_rec_td", "def_td", "def_st_td", "def_pr_td", "def_kr_td", "def_2pt", "def_forced_punts", "def_pass_def", "pts_allow", "tkl_loss", "safe", "blk_kick", "def_3_and_out", "def_4_and_stop",
 ]);
 const BONUS = new Set([
   "bonus_pass_yd_300", "bonus_pass_yd_400", "bonus_rush_yd_100", "bonus_rush_yd_200", "bonus_rec_yd_100", "bonus_rec_yd_200",
