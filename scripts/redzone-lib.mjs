@@ -28,14 +28,15 @@ export function createParser(onRow) {
 }
 
 const REQUIRED = ["week", "posteam", "yardline_100", "pass_attempt", "rush_attempt", "receiver_player_id", "rusher_player_id", "passer_player_id"];
-const DEFENSE_COLUMNS = ["defteam", "interception", "fumble_lost", "fumble_forced", "safety", "touchdown", "td_team", "play_type", "punt_blocked", "field_goal_result", "extra_point_result", "two_point_conv_result", "yards_gained", "game_id", "fixed_drive", "fixed_drive_result", "fourth_down_failed", "complete_pass", "fumble_recovery_1_team", "fumbled_1_team", "fumbled_1_player_id", "pass_defense_1_player_id", "pass_defense_2_player_id", "defensive_two_point_conv", "desc"];
+const DEFENSE_COLUMNS = ["defteam", "interception", "fumble_lost", "fumble_forced", "safety", "touchdown", "td_team", "play_type", "punt_blocked", "field_goal_result", "extra_point_result", "two_point_conv_result", "yards_gained", "game_id", "fixed_drive", "fixed_drive_result", "fourth_down_failed", "complete_pass", "fumble_recovery_1_team", "fumbled_1_team", "fumbled_1_player_id", "fumbled_2_player_id", "fumbled_2_team", "fumble_recovery_2_team", "tackle_for_loss_1_player_id", "tackle_for_loss_2_player_id", "pass_defense_1_player_id", "pass_defense_2_player_id", "defensive_two_point_conv", "desc"];
 const OPTIONAL = ["season_type", "two_point_attempt", "sack", "pass_touchdown", "rush_touchdown", ...DEFENSE_COLUMNS];
 const INT_COUNTS_AS_PD = true;
 const SLEEPER_TEAM = { LA: "LAR", OAK: "LV", SD: "LAC", STL: "LAR" };
 const BIG = ["rush_40p", "rec_40p", "pass_cmp_40p", "rush_td_40p", "rush_td_50p", "rec_td_40p", "rec_td_50p", "pass_td_40p", "pass_td_50p",
   "rec_0_4", "rec_5_9", "rec_10_19", "rec_20_29", "rec_30_39", "pass_int_td",
-  // Fumbles on kick and punt returns: nflverse weekly stats leave these out, but Sleeper scores them. Merged into fum / fum_lost on the site.
-  "st_fum", "st_fum_lost"];
+  // Every fumble credited to the player who fumbled (second fumbles on a play, aborted snaps, returns), straight from play-by-play.
+  // The site takes the larger of this and the weekly stats, because nflverse's weekly fumble columns miss some of them.
+  "pbp_fum", "pbp_fum_lost"];
 
 export function createCollector() {
   let idx = null, c = null, parser = null, through = 0, dstThrough = 0;
@@ -58,7 +59,7 @@ export function createCollector() {
     const k = `${tm}|${w}`;
     let t = dst.get(k);
     if (!t) {
-      t = { tm, w, sack: 0, int: 0, fum_rec: 0, def_st_fum_rec: 0, fum_rec_td: 0, ff: 0, def_td: 0, st_td: 0, def_pr_td: 0, def_kr_td: 0, def_2pt: 0, def_forced_punts: 0, def_pass_def: 0, safe: 0, blk_kick: 0, def_3_and_out: 0, def_4_and_stop: 0, pts_allow: 0, yds_allow: 0 };
+      t = { tm, w, sack: 0, int: 0, fum_rec: 0, def_st_fum_rec: 0, fum_rec_td: 0, ff: 0, def_td: 0, st_td: 0, def_pr_td: 0, def_kr_td: 0, def_2pt: 0, def_forced_punts: 0, def_pass_def: 0, tkl_loss: 0, safe: 0, blk_kick: 0, def_3_and_out: 0, def_4_and_stop: 0, pts_allow: 0, yds_allow: 0 };
       dst.set(k, t);
     }
     return t;
@@ -79,6 +80,8 @@ export function createCollector() {
     const play = val(row, c.play);
     const scrimmage = play === "pass" || play === "run";
     if (flag(row, c.sack)) t.sack++;
+    // Tackles for loss: a sack counts as one, and so does any other play with a credited tackler behind the line.
+    if (play !== "no_play" && (flag(row, c.sack) || val(row, c.tfl1) || val(row, c.tfl2))) t.tkl_loss++;
     if (flag(row, c.int)) t.int++;
     // Passes defended: each defender credited on the play. An interception with no separate pass defender still counts once
     // (INT_COUNTS_AS_PD; flip it if the next report shows interception games off by one point per interception).
@@ -160,15 +163,21 @@ export function createCollector() {
     }
   }
 
-  // Fumbles on kickoffs and punts, credited to the player who fumbled.
-  function returnFumble(row, w) {
-    const play = val(row, c.play);
-    if (play !== "punt" && play !== "kickoff") return;
-    const id = val(row, c.fb1p);
-    if (!id) return;
-    const b = bigSlot(id, w);
-    b.st_fum++;
-    if (flag(row, c.fl)) b.st_fum_lost++;
+  // Every fumble on the play, credited to the fumbler. A play can have two fumbles (the recoverer fumbles again).
+  // A fumble is lost when the other team recovered it; with no recovering team (out of bounds, touchback) it is lost
+  // only if the play is flagged as a lost fumble and there was a single fumble.
+  function fumblesOnPlay(row, w) {
+    if (val(row, c.play) === "no_play") return;
+    const lostFlag = flag(row, c.fl);
+    const two = val(row, c.fb2p);
+    const credit = (id, team, rec, only) => {
+      if (!id) return;
+      const b = bigSlot(id, w);
+      b.pbp_fum++;
+      if (rec && team ? rec !== team : only && lostFlag) b.pbp_fum_lost++;
+    };
+    credit(val(row, c.fb1p), val(row, c.fb1), val(row, c.fr1), !two);
+    credit(two, val(row, c.fb2t), val(row, c.fr2), false);
   }
 
   function redZonePlay(row, w, tm) {
@@ -206,7 +215,7 @@ export function createCollector() {
             def: ix("defteam"), int: ix("interception"), fl: ix("fumble_lost"), ff: ix("fumble_forced"), safety: ix("safety"), td: ix("touchdown"),
             tdteam: ix("td_team"), play: ix("play_type"), punt_blocked: ix("punt_blocked"), fgres: ix("field_goal_result"),
             xpres: ix("extra_point_result"), twores: ix("two_point_conv_result"), yds: ix("yards_gained"),
-            fr1: ix("fumble_recovery_1_team"), fb1: ix("fumbled_1_team"), fb1p: ix("fumbled_1_player_id"), pd1: ix("pass_defense_1_player_id"), pd2: ix("pass_defense_2_player_id"), def2: ix("defensive_two_point_conv"), desc: ix("desc"),
+            fr1: ix("fumble_recovery_1_team"), fb1: ix("fumbled_1_team"), fb1p: ix("fumbled_1_player_id"), fb2p: ix("fumbled_2_player_id"), fb2t: ix("fumbled_2_team"), fr2: ix("fumble_recovery_2_team"), tfl1: ix("tackle_for_loss_1_player_id"), tfl2: ix("tackle_for_loss_2_player_id"), pd1: ix("pass_defense_1_player_id"), pd2: ix("pass_defense_2_player_id"), def2: ix("defensive_two_point_conv"), desc: ix("desc"),
             game: ix("game_id"), fdrive: ix("fixed_drive"), fdres: ix("fixed_drive_result"), f4: ix("fourth_down_failed"), complete: ix("complete_pass") };
       parser?.setMask(new Set([...REQUIRED, ...OPTIONAL].filter((k) => k in idx).map((k) => idx[k])));
       return;
@@ -217,7 +226,7 @@ export function createCollector() {
     if (!w || !tm) return;
     if (c.def >= 0 && row[c.def]) defensePlay(row, w, tm, row[c.def]);
     bigPlay(row, w);
-    returnFumble(row, w);
+    fumblesOnPlay(row, w);
     redZonePlay(row, w, tm);
   }
 

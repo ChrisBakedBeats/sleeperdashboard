@@ -10,7 +10,7 @@ const candidates = [
   `${base}/stats_player/stats_player_week_${season}.csv`,
   `${base}/player_stats/player_stats_${season}.csv`,
 ];
-const expected = ["carries", "targets", "receptions", "receiving_air_yards", "target_share", "air_yards_share", "wopr", "attempts", "passing_air_yards", "fantasy_points_ppr", "completions", "passing_yards", "passing_tds", "passing_interceptions", "rushing_yards", "rushing_tds", "receiving_yards", "receiving_tds", "rushing_fumbles_lost", "receiving_fumbles_lost", "sack_fumbles_lost", "fg_made", "fg_blocked", "pat_made"];
+const expected = ["carries", "targets", "receptions", "receiving_air_yards", "target_share", "air_yards_share", "wopr", "attempts", "passing_air_yards", "fantasy_points_ppr", "completions", "passing_yards", "passing_tds", "passing_interceptions", "rushing_yards", "rushing_tds", "receiving_yards", "receiving_tds", "rushing_fumbles_lost", "receiving_fumbles_lost", "sack_fumbles_lost", "fg_made", "fg_blocked", "fg_blocked_list", "pat_made"];
 
 function parseCsv(text) {
   const rows = [];
@@ -93,6 +93,11 @@ try {
       fgmiss_0_19: n("fg_missed_0_19"), fgmiss_20_29: n("fg_missed_20_29"), fgmiss_30_39: n("fg_missed_30_39"), fgmiss_40_49: n("fg_missed_40_49"),
       fgmiss_50_59: n("fg_missed_50_59"), fgmiss_60p: n("fg_missed_60_"), fgmiss_50p: n("fg_missed_50_59") + n("fg_missed_60_"),
     };
+    // Blocked kicks: Sleeper scores them as misses at the kick's distance, so they join the distance buckets too.
+    const blocked = str(r, "fg_blocked_list").split(/[^0-9]+/).filter(Boolean).map(Number);
+    const bb = (lo, hi) => blocked.filter((d) => d >= lo && d <= hi).length;
+    st.fgmiss_0_19 += bb(0, 19); st.fgmiss_20_29 += bb(20, 29); st.fgmiss_30_39 += bb(30, 39); st.fgmiss_40_49 += bb(40, 49);
+    st.fgmiss_50_59 += bb(50, 59); st.fgmiss_60p += bb(60, 200); st.fgmiss_50p += bb(50, 200);
     st.pass_inc = Math.max(0, st.pass_att - st.pass_cmp);
     const nonzero = Object.fromEntries(Object.entries(st).filter(([, v]) => v));
     if (Object.keys(nonzero).length) {
